@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VEILLE-01 — Briefing</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --surface: #ffffff;
+    --surface-2: #eaeef2;
+    --border: #d7dce2;
+    --text: #1a1f27;
+    --muted: #5b6775;
+    --accent: #a8672a;
+    --accent-ink: #ffffff;
+    --accent-2: #3f6b7a;
+    --danger: #a8422f;
+    --font-display: Charter, "Iowan Old Style", "Georgia", "Times New Roman", serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "Consolas", "SFMono-Regular", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151a;
+      --surface: #1a1f27;
+      --surface-2: #20262f;
+      --border: #2c333d;
+      --text: #e7e9ee;
+      --muted: #93a0af;
+      --accent: #d9954a;
+      --accent-ink: #14171c;
+      --accent-2: #6fa0b3;
+      --danger: #d97a63;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12151a;
+    --surface: #1a1f27;
+    --surface-2: #20262f;
+    --border: #2c333d;
+    --text: #e7e9ee;
+    --muted: #93a0af;
+    --accent: #d9954a;
+    --accent-ink: #14171c;
+    --accent-2: #6fa0b3;
+    --danger: #d97a63;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    line-height: 1.5;
+  }
+
+  .deck {
+    scroll-snap-type: y mandatory;
+    overflow-y: auto;
+    height: 100dvh;
+  }
+
+  .slide {
+    scroll-snap-align: start;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(28px, 6vw, 96px);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .slide-inner {
+    max-width: 880px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .slide-id {
+    position: absolute;
+    top: clamp(20px, 4vw, 40px);
+    left: clamp(28px, 6vw, 96px);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+  }
+
+  h1, h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    text-wrap: balance;
+    margin: 0 0 20px;
+    letter-spacing: -0.01em;
+  }
+
+  .slide h2 { font-size: clamp(1.7rem, 3.4vw, 2.5rem); }
+
+  .title-slide h1 { font-size: clamp(2.4rem, 6vw, 4.2rem); margin-bottom: 8px; }
+  .title-slide .sub { font-size: clamp(1rem, 2vw, 1.25rem); color: var(--muted); max-width: 640px; }
+  .title-slide .tags { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 32px; }
+
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    padding: 5px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--surface);
+  }
+
+  p.lede {
+    font-size: clamp(1rem, 1.6vw, 1.2rem);
+    color: var(--muted);
+    max-width: 62ch;
+    margin: 0 0 28px;
+  }
+
+  ul.points, ol.points {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 14px;
+  }
+
+  ul.points li, ol.points li {
+    padding-left: 26px;
+    position: relative;
+    max-width: 68ch;
+  }
+
+  ul.points li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55em;
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+  }
+
+  ol.points { counter-reset: step; }
+  ol.points li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: -0.05em;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  strong.mark { color: var(--text); font-weight: 700; }
+  .muted-note { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+  tr.total td { font-weight: 700; color: var(--accent); border-top: 2px solid var(--border); }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px;
+  }
+
+  .card {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 18px 20px;
+    border-radius: 4px;
+  }
+  .card h3 { font-family: var(--font-body); font-size: 0.95rem; margin: 0 0 8px; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.87rem; }
+  .card .badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+  }
+  .badge.high { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+  .badge.medium { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+
+  /* pipeline diagram */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .pipe-node {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 18px;
+    flex: 1 1 160px;
+    min-width: 150px;
+  }
+  .pipe-node .k {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .pipe-node p { margin: 0; font-size: 0.83rem; color: var(--muted); }
+  .pipe-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    padding: 0 10px;
+    flex: 0 0 auto;
+  }
+
+  .quote-block {
+    border-left: 3px solid var(--accent);
+    padding: 6px 0 6px 20px;
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    color: var(--muted);
+    background: var(--surface-2);
+    padding: 14px 18px;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .roadmap-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 18px;
+    align-items: start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .roadmap-row:last-child { border-bottom: none; }
+  .roadmap-row .stage {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    padding-top: 2px;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  .status-dot.done { background: var(--accent-2); }
+  .status-dot.next { background: var(--accent); }
+  .status-dot.later { background: var(--border); }
+
+  .closing h2 { font-size: clamp(2rem, 4vw, 3rem); }
+
+  /* nav chrome */
+  .chrome {
+    position: fixed;
+    z-index: 20;
+  }
+  .rail {
+    right: clamp(14px, 3vw, 32px);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .rail button {
+    width: 8px; height: 8px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--muted);
+    background: transparent;
+    cursor: pointer;
+  }
+  .rail button[aria-current="true"] { background: var(--accent); border-color: var(--accent); width: 10px; height: 10px; }
+  .rail button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .nav-btns {
+    right: clamp(14px, 3vw, 32px);
+    bottom: clamp(14px, 3vw, 32px);
+    display: flex;
+    gap: 8px;
+  }
+  .nav-btns button {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    padding: 8px 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .nav-btns button:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-btns button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 720px) {
+    .rail { display: none; }
+  }
+
+  @media print {
+    .chrome { display: none; }
+    .deck { height: auto; overflow: visible; }
+    .slide { min-height: auto; page-break-after: always; border-bottom: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <section class="slide title-slide" id="s1">
+    <span class="slide-id">VEILLE-01 · 01/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Briefing produit</p>
+      <h1>VEILLE-01</h1>
+      <p class="sub">Un agent IA de veille défense &amp; export-contrôle, cadré et construit comme un livrable réel — pipeline fonctionnel de bout en bout, pas une maquette.</p>
+      <div class="tags">
+        <span class="tag">LangGraph · StateGraph</span>
+        <span class="tag">Claude Haiku</span>
+        <span class="tag">FastAPI</span>
+        <span class="tag">V1 — testé de bout en bout</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s2">
+    <span class="slide-id">VEILLE-01 · 02/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Le problème</p>
+      <h2>Le suivi manuel du risque export ne se justifie pas a posteriori</h2>
+      <ul class="points">
+        <li>Revue de presse quotidienne dispersée, alertes email non structurées</li>
+        <li>Aucune trace de <strong class="mark">pourquoi</strong> une information a été retenue ou écartée</li>
+        <li>Cible : fonctions conformité export, intelligence économique, affaires publiques</li>
+      </ul>
+      <p class="muted-note">Non-objectif explicite : le système ne décide pas. Il accélère et structure la veille humaine — la décision reste humaine.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s3">
+    <span class="slide-id">VEILLE-01 · 03/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Cadrage</p>
+      <h2>Trois enjeux critiques, pas un seul</h2>
+      <ol class="points">
+        <li><strong class="mark">Classification</strong> cohérente d'un flux hétérogène de sources</li>
+        <li><strong class="mark">Recoupement multi-sources</strong> — distinguer signal confirmé et rumeur isolée</li>
+        <li><strong class="mark">Traçabilité</strong> systématique — chaque affirmation adossée à une source identifiée</li>
+      </ol>
+      <p class="muted-note">1 et 3 couverts en V1 · 2 est le prochain jalon (cf. feuille de route)</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s4">
+    <span class="slide-id">VEILLE-01 · 04/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Périmètre MECE</p>
+      <h2>Cadré en MECE, puis corrigé au contact des données réelles</h2>
+      <div class="card-grid">
+        <div class="card">
+          <h3>Inclus (V1)</h3>
+          <p>Export control, contrats d'armement, mouvements militaires, diplomatie défense, programmes industriels — filtrage thématique, zone mondiale.</p>
+        </div>
+        <div class="card">
+          <h3>Exclu explicitement</h3>
+          <p>Renseignement classifié, cybersécurité (périmètre voisin distinct), décision automatisée, analyse financière de marché.</p>
+        </div>
+      </div>
+      <p class="muted-note" style="margin-top:20px">Révision assumée : un filtrage géographique strict, testé sur données réelles, rejetait à tort la quasi-totalité de 2 sources sur 5 → retiré, remplacé par une extraction de lieu en métadonnée non filtrante. Documenté comme révision, pas masqué.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s5">
+    <span class="slide-id">VEILLE-01 · 05/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Architecture</p>
+      <h2>Un pipeline agentique traçable, pas un script</h2>
+      <div class="pipeline">
+        <div class="pipe-node"><span class="k">Sources</span><p>Flux RSS multi-sources, validés en direct</p></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node"><span class="k">Collecte</span><p>collector.py</p></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node"><span class="k">Dédoublonnage</span><p>avant l'appel LLM, pas après</p></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node"><span class="k">Analyse</span><p>classification + résumé + citation vérifiée</p></div>
+      </div>
+      <p class="muted-note" style="margin-top:18px">État partagé (<code>VeilleState</code>) entre les nœuds, chaque nœud tracé nativement — sans instrumentation manuelle.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s6">
+    <span class="slide-id">VEILLE-01 · 06/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Garde-fou non négociable</p>
+      <h2>Pas de résumé sans preuve</h2>
+      <p class="lede">Chaque résumé généré par le LLM doit être accompagné d'une citation vérifiée <strong class="mark">verbatim</strong> contre le texte source. Sans preuve, l'item est rejeté automatiquement — pas seulement signalé.</p>
+      <div class="quote-block">« The Rafale export deal was signed today. » — extrait source, jamais traduit, jamais paraphrasé</div>
+      <p class="muted-note" style="margin-top:16px">Même principe appliqué au lieu extrait : vide plutôt que non vérifiable.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s7">
+    <span class="slide-id">VEILLE-01 · 07/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Valeur estimée</p>
+      <h2>Ordre de grandeur illustratif</h2>
+      <table>
+        <thead>
+          <tr><th>Poste</th><th>Hypothèse</th><th class="num">Valeur</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Équipe concernée</td><td>4 analystes dédiés</td><td class="num">—</td></tr>
+          <tr><td>Gain de temps</td><td>90 → 30 min de revue / jour / analyste</td><td class="num">528 h/an</td></tr>
+          <tr class="total"><td>Valeur temps</td><td>528 h × 60 €/h chargé</td><td class="num">~32 000 €/an</td></tr>
+          <tr><td>Coût du système (mesuré réel)</td><td>110 items/j × 1 appel LLM/item</td><td class="num">~110 €/an</td></tr>
+        </tbody>
+      </table>
+      <p class="muted-note" style="margin-top:16px">Ratio favorable même en scénario dégradé (gain divisé par deux). Le bénéfice qualitatif — standardisation, traçabilité — reste déterminant au-delà du seul temps.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s8">
+    <span class="slide-id">VEILLE-01 · 08/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Risques</p>
+      <h2>Traités par priorité, pas par exhaustivité</h2>
+      <div class="card-grid">
+        <div class="card">
+          <span class="badge high">Haute priorité</span>
+          <h3>Hallucination LLM</h3>
+          <p>Citation verbatim obligatoire, rejet automatique si absente.</p>
+        </div>
+        <div class="card">
+          <span class="badge high">Haute priorité</span>
+          <h3>Usage détourné</h3>
+          <p>Positionnement explicite : aide à la veille, jamais outil de décision automatisée.</p>
+        </div>
+        <div class="card">
+          <span class="badge medium">Moyenne</span>
+          <h3>Biais de sources</h3>
+          <p>Suivi de couverture par source, revue périodique de la liste.</p>
+        </div>
+        <div class="card">
+          <span class="badge medium">Moyenne</span>
+          <h3>Dérive de coût LLM</h3>
+          <p>Plafond d'appels/jour — codé et testé, pas seulement documenté.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" id="s9">
+    <span class="slide-id">VEILLE-01 · 09/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Preuve par l'usage</p>
+      <h2>La rigueur ne s'est pas arrêtée au cadrage</h2>
+      <ul class="points">
+        <li><strong class="mark">Garde-fou déclaré, non câblé.</strong> Le plafond d'appels LLM/jour existait dans la config sans être vérifié dans le code. Trouvé par auto-audit, corrigé, testé dans les deux sens.</li>
+        <li><strong class="mark">Précision auto-questionnée.</strong> 27/30 items en accord avec l'annotation manuelle (90 %, au-dessus de la cible 85 %) — retenu seulement après avoir requestionné l'annotation elle-même, ce qui a révélé des définitions de catégorie encore ambiguës plutôt qu'un défaut du classifieur.</li>
+      </ul>
+      <p class="muted-note" style="margin-top:6px">Le réflexe : tester contre des données réelles avant de déclarer un composant fait, et se remettre en question avant d'accepter un bon résultat.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s10">
+    <span class="slide-id">VEILLE-01 · 10/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">Feuille de route</p>
+      <h2>V1 solide, prochain jalon identifié précisément</h2>
+      <div class="roadmap-row">
+        <span class="stage">V1</span>
+        <div><span class="status-dot done"></span>Collecte + dédoublonnage + classification + résumé tracé + API + frontend — testé de bout en bout</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="stage">V1</span>
+        <div><span class="status-dot later"></span>Déploiement Cloud Run + Cloud Scheduler — séquencé après un pipeline local qui tourne réellement</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="stage">V2</span>
+        <div><span class="status-dot next"></span>Agent vérificateur : recoupement multi-sources, score de confiance, carte sectorisée</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="stage">V3</span>
+        <div><span class="status-dot later"></span>Mémoire interrogeable sur l'historique (requêtes en langage naturel)</div>
+      </div>
+      <p class="muted-note" style="margin-top:18px">Recommandation : prioriser le vérificateur V2 avant le déploiement — c'est le seul des 3 enjeux critiques encore non couvert.</p>
+    </div>
+  </section>
+
+  <section class="slide closing" id="s11">
+    <span class="slide-id">VEILLE-01 · 11/11</span>
+    <div class="slide-inner">
+      <p class="eyebrow">En synthèse</p>
+      <h2>Un cadrage complet, appliqué à un système réel — pas juste des slides</h2>
+      <p class="lede">MECE, alternatives évaluées, KPIs, risques, gouvernance — avec le même niveau d'exigence de vérification empirique du début à la fin, jusqu'à la mesure de précision finale.</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="chrome rail" id="rail"></div>
+<div class="chrome nav-btns">
+  <button id="prevBtn" type="button" aria-label="Slide précédente">← Préc.</button>
+  <button id="nextBtn" type="button" aria-label="Slide suivante">Suiv. →</button>
+</div>
+
+<script>
+  (function () {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+    var deck = document.getElementById('deck');
+    var rail = document.getElementById('rail');
+
+    slides.forEach(function (slide, i) {
+      var dot = document.createElement('button');
+      dot.type = 'button';
+      dot.setAttribute('aria-label', 'Aller à la slide ' + (i + 1));
+      dot.addEventListener('click', function () {
+        slide.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      rail.appendChild(dot);
+    });
+
+    var dots = Array.prototype.slice.call(rail.children);
+
+    function currentIndex() {
+      var mid = deck.scrollTop + deck.clientHeight / 2;
+      var idx = 0;
+      slides.forEach(function (slide, i) {
+        if (slide.offsetTop <= mid) idx = i;
+      });
+      return idx;
+    }
+
+    function updateRail() {
+      var idx = currentIndex();
+      dots.forEach(function (d, i) {
+        d.setAttribute('aria-current', i === idx ? 'true' : 'false');
+      });
+    }
+
+    function go(delta) {
+      var idx = Math.min(slides.length - 1, Math.max(0, currentIndex() + delta));
+      slides[idx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    deck.addEventListener('scroll', updateRail, { passive: true });
+    window.addEventListener('resize', updateRail);
+
+    document.getElementById('prevBtn').addEventListener('click', function () { go(-1); });
+    document.getElementById('nextBtn').addEventListener('click', function () { go(1); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); go(1); }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+    });
+
+    updateRail();
+  })();
+</script>
+
+</body>
+</html>
