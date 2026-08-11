@@ -28,6 +28,20 @@ Le point critique n'est pas la collecte (déjà partiellement automatisable par 
 
 **Non-objectif explicite** : le système ne prend aucune décision (pas de blocage automatique d'un contrat, pas d'alerte réglementaire opposable). Il augmente la vitesse et la rigueur de la veille humaine — la décision reste humaine. C'est un point de vigilance éthique et légal à assumer explicitement dans le positionnement du produit.
 
+### Ordre de grandeur illustratif (hypothèses de dimensionnement, à valider avec l'organisation utilisatrice)
+
+| Poste | Hypothèse | Valeur |
+|---|---|---|
+| Équipe concernée | Analystes dédiés à la veille export/géopolitique | 4 |
+| Temps de revue manuelle actuel | Revue de presse dispersée, sans agrégation | ~90 min/jour/analyste |
+| Temps de revue avec digest structuré | Lecture ciblée, priorisée par catégorie et source | ~30 min/jour/analyste |
+| Gain de temps | 60 min/jour/analyste × 4 analystes × ~220 j ouvrés/an | ~528 h/an |
+| Coût chargé analyste (ordre de grandeur marché) | Hypothèse | ~60 €/h |
+| **Valeur temps estimée** | 528 h × 60 € | **~32 000 €/an** |
+| **Coût réel du système (mesuré)** | 110 items/jour × 1 appel LLM/item × 365 j, coût par appel mesuré en production | **~110 €/an** |
+
+Le ratio valeur/coût reste favorable même avec des hypothèses dégradées (ex. gain de temps divisé par deux). L'essentiel du bénéfice attendu n'est de toute façon pas uniquement le temps mais la standardisation de la lecture des signaux faibles et la traçabilité systématique — qualitatives, plus difficiles à monétiser, mais tout aussi déterminantes dans la décision d'adoption.
+
 ## 4. Cadrage MECE du périmètre
 
 ### Inclus (V1)

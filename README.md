@@ -124,8 +124,17 @@ Définitions et cibles détaillées dans [`docs/cadrage.md` §7](docs/cadrage.md
 
 ## Garde-fous (implémentés dès V1)
 
-- `backend/guardrails.py` — plafond d'appels LLM par jour, teste dans les deux sens (déclenchement réel vérifié, run normal non affecté)
+- `backend/guardrails.py` — plafond d'appels LLM par jour, testé dans les deux sens (déclenchement réel vérifié, run normal non affecté)
+- `backend/graph.py` — plafond de steps par run (`MAX_STEPS_PER_RUN`), appliqué via le `recursion_limit` LangGraph — protection contre une boucle d'agent incontrôlée (cadrage §8), testée dans les deux sens
 - `backend/agents/analyst.py` — traçabilité systématique : un résumé sans citation vérifiable dans le texte source est rejeté automatiquement, pas seulement signalé
+
+Les deux premiers garde-fous étaient initialement déclarés en config sans être vérifiés en code — écart trouvé par auto-audit et corrigé, plutôt que découvert en revue externe. C'est le type de vérification qu'un audit technique répété périodiquement pendant le développement doit attraper.
+
+## Qualité & CI
+
+- Lint et format : `ruff` (config dans `pyproject.toml`)
+- Tests : `pytest` (`tests/`, LLM et flux RSS mockés — rapides, déterministes, sans coût)
+- CI : `.github/workflows/ci.yml`, lance lint + format + tests sur chaque push/PR
 
 ## Note
 
