@@ -7,7 +7,7 @@ tournent en parallèle (limite connue, cf. section correspondante du cadrage).
 """
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from backend.config import MAX_LLM_CALLS_PER_DAY
@@ -39,7 +39,7 @@ def check_and_increment_llm_call() -> None:
     if data["calls"] >= MAX_LLM_CALLS_PER_DAY:
         raise BudgetExceeded(
             f"Plafond quotidien d'appels LLM atteint ({MAX_LLM_CALLS_PER_DAY}/jour). "
-            f"Run interrompu à {datetime.now(timezone.utc).isoformat()} "
+            f"Run interrompu à {datetime.now(UTC).isoformat()} "
             "(garde-fou non négociable, cf. docs/cadrage.md §6)."
         )
 

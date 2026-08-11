@@ -2,7 +2,7 @@
 
 import feedparser
 
-from backend.config import Source, SOURCES
+from backend.config import SOURCES, Source
 from backend.state import RawItem, VeilleState
 
 

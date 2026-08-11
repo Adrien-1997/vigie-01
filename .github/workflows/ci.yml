@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    env:
+      # Garde-fous obligatoires (backend/config.py) : pas de valeur par défaut dans le code,
+      # donc obligatoires ici aussi pour que l'import du package réussisse en CI.
+      MAX_STEPS_PER_RUN: "20"
+      MAX_LLM_CALLS_PER_DAY: "200"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Lint (ruff check)
+        run: ruff check .
+
+      - name: Format check (ruff format)
+        run: ruff format --check .
+
+      - name: Run tests
+        run: pytest

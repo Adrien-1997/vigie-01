@@ -6,7 +6,7 @@ appele a la main), remplace par Cloud Scheduler -> Cloud Run job en production.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -43,7 +43,7 @@ def run() -> dict:
         raise HTTPException(status_code=429, detail=str(e)) from e
 
     digest = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "items": result["analyzed_items"],
     }
     _DIGEST_FILE.write_text(json.dumps(digest, ensure_ascii=False, indent=2), encoding="utf-8")
