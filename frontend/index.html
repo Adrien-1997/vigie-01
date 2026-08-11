@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VEILLE-01</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #171b21;
+    --border: #262c35;
+    --text: #e6e9ef;
+    --muted: #8b93a1;
+    --accent: #4f8cff;
+    --citation-bg: #11151b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 { font-size: 1.25rem; margin: 0; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 0.85rem; }
+  .controls { display: flex; align-items: center; gap: 12px; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #status { color: var(--muted); font-size: 0.85rem; }
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 32px 64px;
+  }
+  .item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .badge {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(79, 140, 255, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(79, 140, 255, 0.35);
+  }
+  .source { color: var(--muted); font-size: 0.8rem; }
+  .location { color: var(--muted); font-size: 0.8rem; }
+  h3 { margin: 0 0 8px; font-size: 1.05rem; }
+  .summary { margin: 0 0 10px; line-height: 1.5; }
+  .citation {
+    background: var(--citation-bg);
+    border-left: 3px solid var(--border);
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    font-style: italic;
+    margin: 0 0 10px;
+  }
+  a.link { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+  a.link:hover { text-decoration: underline; }
+  #empty { color: var(--muted); text-align: center; padding: 60px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>VEILLE-01 — digest défense/export-contrôle</h1>
+    <p id="generated-at">Aucun digest chargé.</p>
+  </div>
+  <div class="controls">
+    <span id="status"></span>
+    <button id="run-btn">Lancer la collecte</button>
+  </div>
+</header>
+
+<main id="items"></main>
+
+<script>
+  const API_BASE = "http://localhost:8080";
+  const CATEGORY_LABELS = {
+    export_control: "Contrôle export",
+    contrat_armement: "Contrat d'armement",
+    mouvement_militaire: "Mouvement militaire",
+    diplomatie_defense: "Diplomatie défense",
+    programme_industriel: "Programme industriel",
+  };
+
+  const itemsEl = document.getElementById("items");
+  const statusEl = document.getElementById("status");
+  const generatedAtEl = document.getElementById("generated-at");
+  const runBtn = document.getElementById("run-btn");
+
+  function renderItems(digest) {
+    generatedAtEl.textContent = "Digest généré le " + new Date(digest.generated_at).toLocaleString("fr-FR");
+
+    if (!digest.items || digest.items.length === 0) {
+      itemsEl.innerHTML = '<div id="empty">Aucun événement dans ce digest.</div>';
+      return;
+    }
+
+    itemsEl.innerHTML = digest.items.map(item => `
+      <div class="item">
+        <div class="item-header">
+          <span class="badge">${CATEGORY_LABELS[item.category] || item.category}</span>
+          <span class="source">${item.source}</span>
+          ${item.location ? `<span class="location">📍 ${item.location}</span>` : ""}
+        </div>
+        <h3>${item.title_fr}</h3>
+        <p class="summary">${item.summary}</p>
+        <p class="citation">« ${item.citation} »</p>
+        <a class="link" href="${item.link}" target="_blank" rel="noopener">Source originale ↗</a>
+      </div>
+    `).join("");
+  }
+
+  async function loadEvents() {
+    try {
+      const res = await fetch(`${API_BASE}/events`);
+      if (res.status === 404) {
+        generatedAtEl.textContent = "Aucun digest généré pour l'instant — clique sur \"Lancer la collecte\".";
+        itemsEl.innerHTML = "";
+        return;
+      }
+      const digest = await res.json();
+      renderItems(digest);
+    } catch (e) {
+      generatedAtEl.textContent = "API injoignable (" + API_BASE + "). Vérifie que le serveur tourne.";
+    }
+  }
+
+  runBtn.addEventListener("click", async () => {
+    runBtn.disabled = true;
+    statusEl.textContent = "Collecte en cours (~5 min)…";
+    try {
+      const res = await fetch(`${API_BASE}/run`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json();
+        statusEl.textContent = "Erreur : " + (err.detail || res.status);
+      } else {
+        statusEl.textContent = "Terminé.";
+        await loadEvents();
+      }
+    } catch (e) {
+      statusEl.textContent = "API injoignable.";
+    } finally {
+      runBtn.disabled = false;
+      setTimeout(() => (statusEl.textContent = ""), 4000);
+    }
+  });
+
+  loadEvents();
+</script>
+
+</body>
+</html>

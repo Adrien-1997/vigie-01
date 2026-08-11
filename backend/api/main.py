@@ -10,11 +10,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.graph import run_pipeline
 from backend.guardrails import BudgetExceeded
 
 app = FastAPI(title="VEILLE-01 API")
+
+# Ouvert en V1 pour permettre au frontend statique (fichier local ou serveur dev) d'appeler
+# l'API sans configuration supplementaire. A restreindre a l'origine reelle avant deploiement.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 _DIGEST_FILE = Path(__file__).parent / ".digest.json"
 
