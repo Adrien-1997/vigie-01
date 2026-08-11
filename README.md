@@ -1,68 +1,79 @@
 # VEILLE-01 — Agent de veille export & risque défense/géopolitique
 
-Agent IA autonome qui collecte, classe, recoupe et synthétise quotidiennement des sources ouvertes sur un périmètre défense/géopolitique restreint.
+Agent IA autonome qui collecte, classe et synthétise quotidiennement des sources ouvertes sur un périmètre défense/géopolitique restreint, avec traçabilité systématique de chaque affirmation vers sa source.
+
+**Statut** : backend V1 fonctionnel de bout en bout (collecte → dédoublonnage → classification → API → frontend), déploiement cloud à venir. Détail dans [Roadmap](#roadmap).
+
+![Aperçu du digest](docs/screenshot.png)
 
 ## Cadrage
 
-**Client (hypothèse)** : un grand groupe défense dont les équipes suivent aujourd'hui le risque export et géopolitique à la main, de façon lente et non homogène.
+Cadrage complet — problématique, périmètre MECE, alternatives évaluées, KPIs, matrice de risques, gouvernance, plan de livraison — dans [`docs/cadrage.md`](docs/cadrage.md).
 
 **Valeur** : diviser le temps de synthèse quotidienne, standardiser la lecture des signaux faibles, tracer la fiabilité de chaque information remontée.
 
-**Périmètre V1** : export control, contrats d'armement, mouvements militaires, diplomatie défense, programmes industriels — zone Atlantique-Méditerranée.
+**Périmètre V1** : export control, contrats d'armement, mouvements militaires, diplomatie défense, programmes industriels — filtrage thématique (le lieu est extrait comme métadonnée, sans restreindre la collecte, cf. cadrage §4).
 
-## Architecture cible
+## Architecture
 
 ```
 Sources (RSS, presse spécialisée, communiqués)
         │
         ▼
-  Agent collecteur ──► Agent analyste (classification, résumé)
-        │                        │
-        │                        ▼
-        │              Agent vérificateur (recoupement multi-sources,
-        │               score de confiance, détection contradictions)
-        ▼                        │
-   Mémoire courte  ◄─────────────┘
-   (dédoublonnage)
-        │
-        ▼
-   API (FastAPI) ──► Front (carte sectorisée + flux + timeline)
+  Agent collecteur ──► Mémoire courte ──► Agent analyste
+   (backend/agents/     (dédoublonnage,     (classification, résumé,
+    collector.py)        avant l'appel LLM)  citation vérifiée)
+                          backend/memory/     backend/agents/analyst.py
+                          store.py                   │
+                                                      ▼
+                                            Agent vérificateur (V2)
+                                            recoupement multi-sources,
+                                            score de confiance
+                                                      │
+                                                      ▼
+                                     API (FastAPI) ──► Front (flux ; carte
+                                     backend/api/       sectorisée en V2)
+                                     main.py             frontend/index.html
 ```
 
-Implémenté comme un `StateGraph` LangGraph : chaque agent (collector, analyst, verifier) est un nœud, l'état partagé (`VeilleState`) transporte le texte brut, la classification, le résumé, le score de confiance et le flag de recoupement d'un nœud à l'autre. LangSmith trace chaque nœud sans instrumentation manuelle.
+Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étape est un nœud, l'état partagé (`VeilleState`, `backend/state.py`) transporte les items d'un nœud à l'autre. Le dédoublonnage est placé *avant* l'appel LLM, pas après, pour ne pas consommer de budget sur des items déjà vus. LangSmith trace chaque nœud sans instrumentation manuelle.
 
 ## Stack
 
-| Composant       | Choix                                    | Statut     |
-|-----------------|-------------------------------------------|------------|
-| Orchestration   | LangGraph / LangChain                    | retenu     |
-| LLM             | Claude via `langchain-anthropic`         | retenu     |
-| Backend         | Python 3.12, FastAPI, async               | retenu     |
-| Déploiement     | Cloud Run + Cloud Scheduler (cron)        | retenu     |
-| Observabilité   | LangSmith (tracing natif par nœud)        | retenu     |
-| Frontend        | HTML/JS ou React, déployé avec l'API      | retenu     |
-| Stockage        | GCS (raw/processed), Firestore (état)     | à valider  |
+| Composant       | Choix                                    | Statut                |
+|-----------------|-------------------------------------------|------------------------|
+| Orchestration   | LangGraph / LangChain                    | construit (V1)          |
+| LLM             | Claude Haiku via `langchain-anthropic`   | construit (V1)          |
+| Backend         | Python 3.13, FastAPI                     | construit (V1)          |
+| Observabilité   | LangSmith (tracing natif par nœud)       | construit (V1)          |
+| Frontend        | HTML/JS statique, sans build             | construit (V1)          |
+| Vérificateur / carte sectorisée | LangGraph + score de confiance | prévu (V2)     |
+| Déploiement     | Cloud Run + Cloud Scheduler (cron)        | prévu                   |
+| Stockage        | GCS (raw/processed), Firestore (état)     | à valider (V1 : fichiers locaux gitignored) |
 
 ## Structure du repo
 
 ```
-veille-01/
+vigie/
 ├── backend/
 │   ├── agents/
-│   │   ├── collector.py       # collecte des sources (RSS, API recherche)
-│   │   ├── analyst.py         # classification + résumé
-│   │   └── verifier.py        # recoupement, score de confiance
+│   │   ├── collector.py       # collecte RSS multi-sources, sources validées en direct
+│   │   └── analyst.py         # classification MECE, résumé FR, citation + lieu vérifiés
 │   ├── api/
-│   │   └── main.py            # FastAPI, endpoints /events, /health
+│   │   └── main.py            # FastAPI : /health, /run, /events
+│   ├── eval/
+│   │   ├── build_sample.py    # échantillon stratifié pour mesurer la précision
+│   │   ├── annotate.py        # annotation manuelle interactive
+│   │   └── score.py           # précision mesurée vs cible (cadrage §7)
 │   ├── memory/
-│   │   └── store.py           # dédoublonnage, état court terme
-│   ├── config.py
+│   │   └── store.py           # dédoublonnage court terme (avant l'appel LLM)
+│   ├── config.py               # sources RSS, garde-fous obligatoires
+│   ├── guardrails.py           # plafond d'appels LLM quotidien
+│   ├── graph.py                 # assemblage StateGraph LangGraph
+│   ├── state.py                 # schéma d'état partagé (VeilleState)
 │   └── requirements.txt
 ├── frontend/
-│   └── index.html              # maquette actuelle (veille-01-mockup.html)
-├── infra/
-│   ├── Dockerfile
-│   └── cloudrun.yaml
+│   └── index.html               # digest — HTML/JS statique, appelle l'API réelle
 ├── docs/
 │   └── cadrage.md               # cadrage produit (problématique, MECE, risques, KPIs)
 ├── .env.example
@@ -72,40 +83,50 @@ veille-01/
 ## Démarrage rapide
 
 ```bash
-git clone <repo-url> veille-01
-cd veille-01
+git clone https://github.com/Adrien-1997/vigie-01.git
+cd vigie-01
 
 python -m venv .venv
 source .venv/bin/activate        # .venv\Scripts\activate sous Windows
 
-pip install -r backend/requirements.txt   # inclut langchain-anthropic, langgraph
+pip install -r backend/requirements.txt
 
-cp .env.example .env             # renseigner ANTHROPIC_API_KEY, clé API recherche, LANGCHAIN_API_KEY (LangSmith)
+cp .env.example .env             # renseigner ANTHROPIC_API_KEY, LANGCHAIN_API_KEY (LangSmith),
+                                  # MAX_STEPS_PER_RUN, MAX_LLM_CALLS_PER_DAY (garde-fous obligatoires)
 
 uvicorn backend.api.main:app --reload --port 8080
 ```
 
-Ouvrir `frontend/index.html` en parallèle pour visualiser le flux (données fictives tant que l'agent n'est pas branché).
+Dans un second terminal, pour le frontend :
+
+```bash
+cd frontend
+python -m http.server 5500
+```
+
+Ouvrir `http://localhost:5500`, puis cliquer sur **Lancer la collecte** (déclenche `POST /run` — pipeline complet, ~5 min, consomme du budget LLM réel).
 
 ## Roadmap
 
-- [ ] V1 — collecte + classification + résumé texte, sources fixes
+- [x] V1 — collecte + dédoublonnage + classification + résumé tracé + API + frontend
+- [ ] V1 — déploiement Cloud Run + Cloud Scheduler
 - [ ] V2 — agent vérificateur (recoupement, score de confiance) + carte sectorisée interactive
 - [ ] V3 — mémoire interrogeable sur l'historique (requêtes en langage naturel)
 
 ## Métriques de suivi
 
+Définitions et cibles détaillées dans [`docs/cadrage.md` §7](docs/cadrage.md). Mesure de précision de classification outillée dans `backend/eval/` (échantillonnage stratifié, annotation manuelle, score vs cible).
+
 - Couverture des sources (nb sources actives / nb sources ciblées)
 - Précision de classification (échantillon annoté manuellement)
-- Taux d'événements recoupés vs source unique
 - Temps de traitement bout en bout par cycle
+- Taux de faux positifs jugés critiques par l'analyste
 
-## Garde-fous (obligatoires dès V1)
+## Garde-fous (implémentés dès V1)
 
-- Limite de steps par run d'agent
-- Plafond de budget/appels LLM par jour
-- Traçabilité systématique : chaque affirmation doit pointer vers sa ou ses sources
+- `backend/guardrails.py` — plafond d'appels LLM par jour, teste dans les deux sens (déclenchement réel vérifié, run normal non affecté)
+- `backend/agents/analyst.py` — traçabilité systématique : un résumé sans citation vérifiable dans le texte source est rejeté automatiquement, pas seulement signalé
 
 ## Note
 
-Projet de démonstration. Les données affichées dans la maquette actuelle sont fictives.
+Projet de démonstration à vocation portfolio. Le pipeline et l'API sont réels et fonctionnels (sources RSS live, appels LLM réels, mesures réelles) ; le déploiement cloud et le vérificateur multi-sources restent à construire.
