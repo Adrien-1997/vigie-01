@@ -1,0 +1,7 @@
+langchain-anthropic
+langgraph
+fastapi
+uvicorn[standard]
+feedparser
+pydantic
+python-dotenv
