@@ -19,16 +19,86 @@ export const countryKey = (f: CountryFeature) => f.id ?? f.properties.name;
 const normalize = (s: string) =>
   s
     .toLowerCase()
+    // Le eszett n'est pas un diacritique : sans cette translittération il tombe dans le filtre
+    // ci-dessous et « Großbritannien » devient « gro britannien », qui ne matche plus rien.
+    .replace(/ß/g, "ss")
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-/** Noms français et variantes courantes → nom Natural Earth porté par le topojson.
- *  Le champ `location` est produit par le LLM en texte libre (backend/agents/analyst.py) :
- *  il n'est pas normalisé côté backend, la résolution se fait donc ici, en best-effort assumé. */
+/** Noms de pays dans les langues du périmètre (fr, en, de, it, es — cf. docs/cadrage.md §4) et
+ *  variantes courantes → nom Natural Earth porté par le topojson.
+ *
+ *  Le champ `location` est un extrait VERBATIM du texte source (garde-fou §8) : il sort donc dans
+ *  la langue de la source, pas en français. Sur un run réel, « Großbritannien » et « Vereinigten
+ *  Staaten » ressortaient non rattachés faute d'entrée allemande — d'où ce référentiel multilingue.
+ *  Traduire un nom de pays vers l'index de la carte n'est pas une déduction : le pays est nommé
+ *  explicitement dans la source. Un rattachement ville→pays en serait une, et n'est pas fait ici. */
 const ALIASES: Record<string, string> = {
+  // Allemand
+  "vereinigte staaten": "United States of America",
+  "vereinigten staaten": "United States of America",
+  "vereinigte staaten von amerika": "United States of America",
+  grossbritannien: "United Kingdom",
+  deutschland: "Germany",
+  frankreich: "France",
+  russland: "Russia",
+  spanien: "Spain",
+  italien: "Italy",
+  polen: "Poland",
+  niederlande: "Netherlands",
+  belgien: "Belgium",
+  schweiz: "Switzerland",
+  osterreich: "Austria",
+  schweden: "Sweden",
+  norwegen: "Norway",
+  finnland: "Finland",
+  griechenland: "Greece",
+  turkei: "Turkey",
+  agypten: "Egypt",
+  indien: "India",
+  japan: "Japan",
+  sudkorea: "South Korea",
+  nordkorea: "North Korea",
+  "vereinigte arabische emirate": "United Arab Emirates",
+  "saudi arabien": "Saudi Arabia",
+  litauen: "Lithuania",
+  lettland: "Latvia",
+  estland: "Estonia",
+  // Italien (grecia/polonia/russia/china couvrent aussi l'espagnol ou l'index anglais)
+  "stati uniti": "United States of America",
+  "stati uniti d america": "United States of America",
+  "regno unito": "United Kingdom",
+  germania: "Germany",
+  francia: "France",
+  spagna: "Spain",
+  cina: "China",
+  giappone: "Japan",
+  turchia: "Turkey",
+  grecia: "Greece",
+  polonia: "Poland",
+  ucraina: "Ukraine",
+  israele: "Israel",
+  "corea del sud": "South Korea",
+  "corea del nord": "North Korea",
+  "arabia saudita": "Saudi Arabia",
+  // Espagnol
+  "estados unidos": "United States of America",
+  "reino unido": "United Kingdom",
+  alemania: "Germany",
+  espana: "Spain",
+  rusia: "Russia",
+  ucrania: "Ukraine",
+  turquia: "Turkey",
+  "corea del sur": "South Korea",
+  "arabia saudi": "Saudi Arabia",
+  "emiratos arabes unidos": "United Arab Emirates",
+  "paises bajos": "Netherlands",
+  "islas malvinas": "Falkland Is.",
+  malvinas: "Falkland Is.",
+  // Français et anglais
   "etats unis": "United States of America",
   "etats unis d amerique": "United States of America",
   usa: "United States of America",

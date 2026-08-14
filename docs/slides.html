@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>VEILLE-01 — Briefing</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23a8672a'/%3E%3Ccircle cx='16' cy='16' r='7.5' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%23fff'/%3E%3C/svg%3E" />
 <style>
   :root {
     --bg: #f4f6f8;
@@ -262,6 +263,24 @@
     flex: 0 0 auto;
   }
 
+  /* La hauteur est plafonnée en vh pour que la slide entière (titre + capture + légende)
+     tienne dans une fenêtre de présentation sans couper la légende. */
+  figure.shot {
+    margin: 0 0 16px;
+    text-align: center;
+    line-height: 0;
+  }
+  figure.shot img {
+    display: inline-block;
+    max-width: 100%;
+    max-height: 52vh;
+    width: auto;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface);
+  }
+
   .quote-block {
     border-left: 3px solid var(--accent);
     padding: 6px 0 6px 20px;
@@ -278,7 +297,7 @@
     grid-template-columns: 90px 1fr;
     gap: 18px;
     align-items: start;
-    padding: 14px 0;
+    padding: 11px 0;
     border-bottom: 1px solid var(--border);
   }
   .roadmap-row:last-child { border-bottom: none; }
@@ -348,6 +367,16 @@
     .rail { display: none; }
   }
 
+  /* Écrans courts (portables 1366×768, projecteurs) : les slides les plus denses dépassaient
+     la hauteur de fenêtre et la dernière ligne se retrouvait coupée par le scroll-snap. */
+  @media (max-height: 800px) {
+    .slide { padding-top: clamp(22px, 4vw, 52px); padding-bottom: clamp(22px, 4vw, 52px); }
+    .slide h2 { font-size: clamp(1.4rem, 2.7vw, 2rem); margin-bottom: 14px; }
+    ul.points, ol.points { gap: 10px; }
+    .roadmap-row { padding: 8px 0; }
+    figure.shot img { max-height: 46vh; }
+  }
+
   @media print {
     .chrome { display: none; }
     .deck { height: auto; overflow: visible; }
@@ -364,7 +393,7 @@
 <div class="deck" id="deck">
 
   <section class="slide title-slide" id="s1">
-    <span class="slide-id">VEILLE-01 · 01/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Briefing produit</p>
       <h1>VEILLE-01</h1>
@@ -372,14 +401,29 @@
       <div class="tags">
         <span class="tag">LangGraph · StateGraph</span>
         <span class="tag">Claude Haiku</span>
-        <span class="tag">FastAPI</span>
+        <span class="tag">FastAPI · React</span>
         <span class="tag">V1 — testé de bout en bout</span>
       </div>
     </div>
   </section>
 
+  <section class="slide" id="s1b">
+    <span class="slide-id"></span>
+    <div class="slide-inner">
+      <p class="eyebrow">Synthèse</p>
+      <h2>Réduire le temps de synthèse quotidienne sans céder sur la traçabilité</h2>
+      <ul class="points">
+        <li><strong class="mark">Le constat.</strong> Le point dur n'est pas de collecter — les outils existent — mais de classer un flux hétérogène de façon homogène, de recouper, et de pouvoir justifier a posteriori pourquoi une information a été retenue.</li>
+        <li><strong class="mark">La réponse.</strong> Un pipeline en quatre nœuds où chaque affirmation est adossée à une citation vérifiée verbatim, et où seules les catégories les plus sensibles déclenchent une escalade agentique bornée.</li>
+        <li><strong class="mark">L'état.</strong> V1 fonctionnelle de bout en bout, première tranche du vérificateur V2 livrée, garde-fous codés et testés dans les deux sens — pas seulement déclarés.</li>
+        <li><strong class="mark">La recommandation.</strong> Achever la couverture du vérificateur avant le déploiement cloud : un score de confiance partiel est plus utile qu'un score fabriqué, mais moins qu'un score complet.</li>
+      </ul>
+      <p class="muted-note">Ce qui suit détaille le cadrage, l'architecture et les preuves — dans cet ordre.</p>
+    </div>
+  </section>
+
   <section class="slide" id="s2">
-    <span class="slide-id">VEILLE-01 · 02/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Le problème</p>
       <h2>Le suivi manuel du risque export ne se justifie pas a posteriori</h2>
@@ -393,7 +437,7 @@
   </section>
 
   <section class="slide" id="s3">
-    <span class="slide-id">VEILLE-01 · 03/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Cadrage</p>
       <h2>Trois enjeux critiques, pas un seul</h2>
@@ -402,12 +446,12 @@
         <li><strong class="mark">Recoupement multi-sources</strong> — distinguer signal confirmé et rumeur isolée</li>
         <li><strong class="mark">Traçabilité</strong> systématique — chaque affirmation adossée à une source identifiée</li>
       </ol>
-      <p class="muted-note">1 et 3 couverts en V1 · 2 est le prochain jalon (cf. feuille de route)</p>
+      <p class="muted-note">1 et 3 couverts en V1 · 2 livré en première tranche V2, sur les deux catégories les plus sensibles — l'extension aux trois autres est le prochain jalon (cf. feuille de route)</p>
     </div>
   </section>
 
   <section class="slide" id="s4">
-    <span class="slide-id">VEILLE-01 · 04/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Périmètre MECE</p>
       <h2>Cadré en MECE, puis corrigé au contact des données réelles</h2>
@@ -426,7 +470,7 @@
   </section>
 
   <section class="slide" id="s5">
-    <span class="slide-id">VEILLE-01 · 05/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Architecture</p>
       <h2>Un pipeline agentique traçable, pas un script</h2>
@@ -445,8 +489,32 @@
     </div>
   </section>
 
+  <section class="slide" id="s5b">
+    <span class="slide-id"></span>
+    <div class="slide-inner">
+      <p class="eyebrow">Restitution</p>
+      <h2>Le digest rend visible ce qui engage la confiance</h2>
+      <figure class="shot">
+        <img src="screenshot.png" alt="Digest VIGIE : bandeau d'indicateurs, filtres par catégorie et par état de vérification, et fiches d'événement portant le score de confiance et la citation vérifiée." loading="lazy" />
+      </figure>
+      <p class="muted-note">Score de confiance sur une rampe séquentielle et non en rouge/vert — un score lu comme un verdict invaliderait le non-objectif. Un item hors du périmètre du vérificateur sort sans score plutôt qu'avec un zéro. La provenance « média d'État » est affichée, pas noyée.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s5c">
+    <span class="slide-id"></span>
+    <div class="slide-inner">
+      <p class="eyebrow">Couverture</p>
+      <h2>La carte affiche aussi ce qu'elle ne peut pas placer</h2>
+      <figure class="shot">
+        <img src="screenshot-map.png" alt="Carte de couverture géographique, construite sur le lieu vérifié de chaque événement, avec le décompte des items sans lieu extrait et des lieux non rattachables à un pays." loading="lazy" />
+      </figure>
+      <p class="muted-note">Construite sur le lieu vérifié de l'événement, pas sur le pays de la source. Les items sans lieu extractible et les lieux non rattachables à un pays (espaces maritimes, commandements) sont comptés explicitement : une carte qui ne montrerait que ses succès surestimerait la couverture réelle.</p>
+    </div>
+  </section>
+
   <section class="slide" id="s6">
-    <span class="slide-id">VEILLE-01 · 06/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Garde-fou non négociable</p>
       <h2>Pas de résumé sans preuve</h2>
@@ -457,7 +525,7 @@
   </section>
 
   <section class="slide" id="s7">
-    <span class="slide-id">VEILLE-01 · 07/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Valeur estimée</p>
       <h2>Ordre de grandeur illustratif</h2>
@@ -477,7 +545,7 @@
   </section>
 
   <section class="slide" id="s8">
-    <span class="slide-id">VEILLE-01 · 08/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Risques</p>
       <h2>Traités par priorité, pas par exhaustivité</h2>
@@ -507,22 +575,35 @@
   </section>
 
   <section class="slide" id="s9">
-    <span class="slide-id">VEILLE-01 · 09/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
-      <p class="eyebrow">Preuve par l'usage</p>
-      <h2>La rigueur ne s'est pas arrêtée au cadrage</h2>
+      <p class="eyebrow">Preuve par l'usage · 1/2</p>
+      <h2>Le chiffre flatteur a été questionné avant d'être retenu</h2>
       <ul class="points">
-        <li><strong class="mark">Garde-fou déclaré, non câblé.</strong> Le plafond d'appels LLM/jour existait dans la config sans être vérifié dans le code. Trouvé par auto-audit, corrigé, testé dans les deux sens.</li>
-        <li><strong class="mark">Précision auto-questionnée.</strong> 27/30 items en accord avec l'annotation manuelle (90 %, au-dessus de la cible 85 %) — retenu seulement après avoir requestionné l'annotation elle-même, ce qui a révélé des définitions de catégorie encore ambiguës plutôt qu'un défaut du classifieur.</li>
-        <li><strong class="mark">Deuxième mesure, plus sévère.</strong> Après la reprise des sources : 73/88 (83 %), sous la cible. Les désaccords se concentraient sur deux frontières de catégorie mal définies, corrigées dans le cadrage et le prompt. Le protocole d'annotation lui-même comportait un biais, documenté dans le cadrage plutôt que le chiffre présenté comme acquis.</li>
-        <li><strong class="mark">Bug trouvé par le test, pas par la relecture.</strong> La reprise des sources a fait apparaître des flux exposant des mois d'historique : sans fenêtre de fraîcheur, le premier run aurait consommé le budget d'une journée entière sur l'arriéré avant de s'interrompre.</li>
+        <li><strong class="mark">Garde-fou déclaré, non câblé.</strong> Le plafond d'appels LLM/jour existait dans la config sans être vérifié nulle part dans le code. Trouvé par auto-audit, corrigé, testé dans les deux sens.</li>
+        <li><strong class="mark">Précision auto-questionnée.</strong> 27/30 d'accord avec l'annotation manuelle, au-dessus de la cible — retenu seulement après avoir requestionné l'annotation elle-même, ce qui a révélé des définitions de catégorie ambiguës plutôt qu'un défaut du classifieur.</li>
+        <li><strong class="mark">Deuxième mesure, plus sévère.</strong> Après la reprise des sources : 73/88 (83 %), sous la cible. Le protocole d'annotation comportait lui-même un biais — documenté dans le cadrage plutôt que le chiffre présenté comme acquis.</li>
       </ul>
-      <p class="muted-note" style="margin-top:6px">Le réflexe : tester contre des données réelles avant de déclarer un composant fait, se remettre en question avant d'accepter un bon résultat, et documenter ce qui reste non vérifié plutôt que de l'omettre.</p>
+      <p class="muted-note" style="margin-top:6px">Une mesure de précision teste autant la clarté des définitions que la qualité du modèle. Les deux s'auditent ensemble.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s9b">
+    <span class="slide-id"></span>
+    <div class="slide-inner">
+      <p class="eyebrow">Preuve par l'usage · 2/2</p>
+      <h2>Les défauts sont venus du test, pas de la relecture</h2>
+      <ul class="points">
+        <li><strong class="mark">Le volume réel a démenti l'estimation.</strong> La reprise des sources a fait apparaître des flux exposant des mois d'historique. Sans fenêtre de fraîcheur, le premier run aurait consommé le budget d'une journée entière sur l'arriéré avant de s'interrompre.</li>
+        <li><strong class="mark">Symptôme à l'affichage, cause en amont.</strong> Deux pays seulement ressortaient sur la carte. Plutôt que d'ajouter des règles de rattrapage à la restitution : mesurer d'abord. 10 des 11 lieux manquants avaient leur pays nommé dans le titre — or la vérification verbatim ne portait que sur le corps de l'article, et effaçait des extractions correctes.</li>
+        <li><strong class="mark">Corrigé sans affaiblir le garde-fou.</strong> Le titre est du texte publié par la source : l'extrait doit toujours y correspondre mot pour mot. Couverture passée de 6 à 13 lieux sur 16 items.</li>
+      </ul>
+      <p class="muted-note" style="margin-top:6px">Remonter du symptôme à la cause plutôt que corriger là où le problème se voit — et documenter ce qui reste non vérifié plutôt que de l'omettre.</p>
     </div>
   </section>
 
   <section class="slide" id="s10">
-    <span class="slide-id">VEILLE-01 · 10/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">Feuille de route</p>
       <h2>V1 solide, prochain jalon identifié précisément</h2>
@@ -544,18 +625,22 @@
       </div>
       <div class="roadmap-row">
         <span class="stage">V2</span>
-        <div><span class="status-dot next"></span>Étendre le vérificateur aux autres catégories, texte intégral des articles, carte sectorisée</div>
+        <div><span class="status-dot done"></span>Carte de couverture interactive, construite sur le lieu vérifié de chaque événement</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="stage">V2</span>
+        <div><span class="status-dot next"></span>Étendre le vérificateur aux trois autres catégories et récupérer le texte intégral des articles</div>
       </div>
       <div class="roadmap-row">
         <span class="stage">V3</span>
         <div><span class="status-dot later"></span>Mémoire interrogeable sur l'historique (requêtes en langage naturel)</div>
       </div>
-      <p class="muted-note" style="margin-top:18px">Recommandation : achever la couverture du vérificateur avant le déploiement — le score de confiance n'est produit que sur deux des cinq catégories, et les items non couverts sortent volontairement sans score plutôt qu'avec une valeur par défaut trompeuse.</p>
+      <p class="muted-note" style="margin-top:14px">Recommandation : achever la couverture du vérificateur avant le déploiement — le score n'est produit que sur deux des cinq catégories.</p>
     </div>
   </section>
 
   <section class="slide closing" id="s11">
-    <span class="slide-id">VEILLE-01 · 11/11</span>
+    <span class="slide-id"></span>
     <div class="slide-inner">
       <p class="eyebrow">En synthèse</p>
       <h2>Un cadrage complet, appliqué à un système réel — pas juste des slides</h2>
@@ -576,6 +661,15 @@
     var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
     var deck = document.getElementById('deck');
     var rail = document.getElementById('rail');
+
+    // Numérotation générée à l'exécution : écrite en dur, elle dérivait à chaque slide ajoutée.
+    slides.forEach(function (slide, i) {
+      var id = slide.querySelector('.slide-id');
+      if (id) {
+        id.textContent =
+          'VEILLE-01 · ' + String(i + 1).padStart(2, '0') + '/' + String(slides.length).padStart(2, '0');
+      }
+    });
 
     slides.forEach(function (slide, i) {
       var dot = document.createElement('button');

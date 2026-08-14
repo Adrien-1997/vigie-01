@@ -2,9 +2,15 @@
 
 Agent IA autonome qui collecte, classe et synthétise quotidiennement des sources ouvertes sur un périmètre défense/géopolitique restreint, avec traçabilité systématique de chaque affirmation vers sa source.
 
-**Statut** : backend V1 fonctionnel de bout en bout (collecte → dédoublonnage → classification → vérification → API → frontend), première tranche du vérificateur V2 livrée, déploiement cloud à venir. Détail dans [Roadmap](#roadmap).
+**Statut** : pipeline V1 fonctionnel de bout en bout (collecte → dédoublonnage → classification → vérification → API → frontend), première tranche du vérificateur V2 livrée, déploiement cloud à venir. Détail dans [Roadmap](#roadmap).
 
-![Aperçu du digest](docs/screenshot.png)
+![Digest VIGIE : bandeau d'indicateurs, filtres par catégorie et par état de vérification, fiches d'événement portant le score de confiance et la citation vérifiée](docs/screenshot.png)
+
+Le digest expose les signaux qui engagent la confiance plutôt que la seule liste d'articles : score de confiance du vérificateur, recoupement, provenance « média d'État », citation vérifiée verbatim. Un item hors du périmètre du vérificateur sort sans score plutôt qu'avec un zéro trompeur.
+
+![Carte de couverture géographique construite sur le lieu vérifié de chaque événement, avec le décompte des items sans lieu extrait et des lieux non rattachables à un pays](docs/screenshot-map.png)
+
+La carte est construite sur le champ `location` vérifié par item, pas sur le pays de la source, et affiche explicitement ce qu'elle ne peut pas placer — items sans lieu extractible, lieux non rattachables à un pays (espaces maritimes, commandements). Une carte qui ne montrerait que ses succès surestimerait la couverture réelle.
 
 ## Cadrage
 
