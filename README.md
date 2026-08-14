@@ -10,7 +10,7 @@ Le digest expose les signaux qui engagent la confiance plutôt que la seule list
 
 ![Carte de couverture géographique construite sur le lieu vérifié de chaque événement, avec le décompte des items sans lieu extrait et des lieux non rattachables à un pays](docs/screenshot-map.png)
 
-La carte est construite sur le champ `location` vérifié par item, pas sur le pays de la source, et affiche explicitement ce qu'elle ne peut pas placer — items sans lieu extractible, lieux non rattachables à un pays (espaces maritimes, commandements). Une carte qui ne montrerait que ses succès surestimerait la couverture réelle.
+La carte est construite sur le champ `location` vérifié par item, pas sur le pays de la source, et affiche explicitement ce qu'elle ne peut pas placer — items sans lieu extractible, lieux non rattachables à un pays (espaces maritimes, détroits internationaux, régions transnationales). Une carte qui ne montrerait que ses succès surestimerait la couverture réelle. Une localité (« Darwin ») est rattachée à son pays par déduction du modèle et non par citation de la source : ces items sont placés, mais comptés séparément et signalés comme déduits, une couverture déduite ne devant pas se lire comme une couverture citée.
 
 ## Cadrage
 

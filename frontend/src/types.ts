@@ -21,6 +21,9 @@ export interface AnalyzedItem {
   summary: string;
   citation: string;
   location: string;
+  /** Pays déduit de `location` par le LLM, nom anglais — seul champ non vérifiable verbatim.
+   *  Optionnel : les digests produits avant son introduction ne le portent pas. */
+  location_country?: string;
   confidence_score: number | null;
   corroborated: boolean | null;
 }

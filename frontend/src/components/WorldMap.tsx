@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { geoNaturalEarth1, geoPath } from "d3-geo";
 import type { AnalyzedItem, Category } from "../types";
-import { COUNTRIES, countryKey, resolveLocation, type CountryFeature } from "../lib/geo";
+import { COUNTRIES, countryKey, countryLabel, resolveLocation, type CountryFeature } from "../lib/geo";
 import { CATEGORY_LABEL, CATEGORY_VAR } from "../lib/taxonomy";
 
 const W = 960;
@@ -21,6 +21,8 @@ const PATHS: { feature: CountryFeature; d: string }[] = DRAWN.map((feature) => (
 
 interface Bucket {
   total: number;
+  /** Part du total rattachée au pays par déduction et non par citation (cf. lib/geo.ts). */
+  inferred: number;
   byCategory: Map<Category, number>;
   name: string;
 }
@@ -34,33 +36,38 @@ interface Props {
 export function WorldMap({ items, selected, onSelect }: Props) {
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
 
-  const { byCountry, unlocated, unresolved, max } = useMemo(() => {
+  const { byCountry, unlocated, unresolved, inferred, max } = useMemo(() => {
     const byCountry = new Map<string, Bucket>();
     let unlocated = 0;
     let unresolved = 0;
+    let inferred = 0;
 
     for (const item of items) {
       if (!item.location.trim()) {
         unlocated += 1;
         continue;
       }
-      const feature = resolveLocation(item.location);
-      if (!feature) {
+      const match = resolveLocation(item.location, item.location_country);
+      if (!match) {
         unresolved += 1;
         continue;
       }
-      const key = countryKey(feature);
+      const key = countryKey(match.feature);
       let bucket = byCountry.get(key);
       if (!bucket) {
-        bucket = { total: 0, byCategory: new Map(), name: feature.properties.name };
+        bucket = { total: 0, inferred: 0, byCategory: new Map(), name: countryLabel(match.feature) };
         byCountry.set(key, bucket);
       }
       bucket.total += 1;
+      if (match.inferred) {
+        bucket.inferred += 1;
+        inferred += 1;
+      }
       bucket.byCategory.set(item.category, (bucket.byCategory.get(item.category) ?? 0) + 1);
     }
 
     const max = Math.max(0, ...[...byCountry.values()].map((b) => b.total));
-    return { byCountry, unlocated, unresolved, max };
+    return { byCountry, unlocated, unresolved, inferred, max };
   }, [items]);
 
   // Autant de paliers que de valeurs distinctes possibles, plafonné à la rampe : sur un digest
@@ -117,6 +124,7 @@ export function WorldMap({ items, selected, onSelect }: Props) {
                 {bucket && (
                   <title>
                     {bucket.name} — {bucket.total} item{bucket.total > 1 ? "s" : ""}
+                    {bucket.inferred > 0 && `, dont ${bucket.inferred} rattaché${bucket.inferred > 1 ? "s" : ""} par déduction`}
                   </title>
                 )}
               </path>
@@ -126,13 +134,18 @@ export function WorldMap({ items, selected, onSelect }: Props) {
 
         {hover && hovered && (
           <div
-            className="map-tooltip"
+            className="map-tooltip map-tooltip-body"
             style={{
               left: Math.min(hover.x + 14, 640),
               top: hover.y + 14,
             }}
           >
             <strong>{hovered.name}</strong>
+            {hovered.inferred > 0 && (
+              <span className="tooltip-note">
+                {hovered.inferred}/{hovered.total} rattaché{hovered.inferred > 1 ? "s" : ""} par déduction
+              </span>
+            )}
             <ul>
               {[...hovered.byCategory.entries()]
                 .sort((a, b) => b[1] - a[1])
@@ -165,12 +178,19 @@ export function WorldMap({ items, selected, onSelect }: Props) {
         <span>
           {unresolved} lieu{unresolved > 1 ? "x" : ""} non rattaché{unresolved > 1 ? "s" : ""} à un pays
         </span>
+        {inferred > 0 && (
+          <span>
+            {inferred} rattaché{inferred > 1 ? "s" : ""} par déduction
+          </span>
+        )}
       </div>
 
       <p className="note" style={{ marginTop: 8 }}>
         Carte construite sur le champ <code>location</code> vérifié par item, pas sur le pays de la source.
         Un lieu absent du texte source ressort vide : la couverture réelle est sous-estimée
-        (docs/cadrage.md §11).
+        (docs/cadrage.md §11). Une localité (« Darwin ») est rattachée à son pays par déduction du
+        modèle, pas par citation de la source : ces items sont comptés à part ci-dessus et signalés
+        au survol du pays.
       </p>
     </div>
   );

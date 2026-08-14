@@ -70,8 +70,8 @@ const PREDICATES = {
   stateAffiliated: (i: AnalyzedItem, f: Filters) => !f.stateAffiliated || i.state_affiliated,
   mapCountry: (i: AnalyzedItem, f: Filters) => {
     if (f.mapCountry === null) return true;
-    const feature = resolveLocation(i.location);
-    return feature !== null && countryKey(feature) === f.mapCountry;
+    const match = resolveLocation(i.location, i.location_country);
+    return match !== null && countryKey(match.feature) === f.mapCountry;
   },
 } satisfies Record<keyof Filters, (i: AnalyzedItem, f: Filters) => boolean>;
 

@@ -48,7 +48,18 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
    VERBATIM du titre ou du texte source. Privilégie le nom de pays quand il est écrit tel quel.
    Laisse vide si aucun lieu n'est explicitement nommé — ne déduis jamais un lieu qui n'est pas
    écrit noir sur blanc, et ne transforme pas un gentilé en nom de pays (« Ukrainian » n'autorise
-   pas « Ukraine » si le mot « Ukraine » n'apparaît nulle part)."""
+   pas « Ukraine » si le mot « Ukraine » n'apparaît nulle part).
+6. Fournis location_country : le pays souverain dans lequel se trouve le lieu de location, en
+   ANGLAIS et sous sa forme usuelle (« Australia », « Ukraine », « United States of America »).
+   Contrairement aux champs précédents ce n'est PAS un extrait du texte : c'est la seule déduction
+   autorisée, et elle ne sert qu'à placer l'item sur une carte par pays. « Darwin » donne
+   « Australia », « Kharkiv » donne « Ukraine ». Laisse vide dans ces quatre cas :
+   - location est vide (rien à rattacher) ;
+   - le lieu n'appartient à aucun pays : haute mer, détroit international, espace, région
+     transnationale (« Sahel », « Balkans »), organisation ou unité militaire ;
+   - le lieu est dans plusieurs pays sans qu'un seul domine ;
+   - la souveraineté du lieu est contestée ou ferait l'objet d'un désaccord entre États.
+   Un champ vide est toujours préférable à un rattachement arbitré."""
 
 
 class _Analysis(BaseModel):
@@ -58,6 +69,10 @@ class _Analysis(BaseModel):
     citation: str = Field(description="Extrait verbatim du texte source, langue d'origine, justifiant le résumé")
     location: str = Field(
         description="Extrait verbatim nommant le pays/lieu principal de l'article ; vide si non mentionné"
+    )
+    location_country: str = Field(
+        description="Pays souverain du lieu de location, nom anglais usuel ; vide si le lieu n'est dans aucun pays, "
+        "est transnational ou de souveraineté contestée"
     )
 
 
@@ -114,11 +129,15 @@ def analyze(state: VeilleState) -> VeilleState:
         # le résumé et vient donc du corps. Mesuré sur un run réel : la vérification contre le seul
         # corps effaçait des extractions correctes, 10 des 11 lieux vides ayant leur pays nommé dans
         # le titre et nulle part ailleurs (les extraits RSS sont souvent tronqués, cf. §11).
-        location = (
-            result.location
-            if _extract_verified(result.location, f"{item['title']} {clean_text}")
-            else ""
-        )
+        location = result.location if _extract_verified(result.location, f"{item['title']} {clean_text}") else ""
+
+        # location_country est la seule sortie du LLM soustraite au garde-fou verbatim, parce
+        # qu'elle est par construction absente du texte : « Darwin » ne contient pas « Australia ».
+        # Deux contreparties la bornent. Ici : pas de lieu vérifié, pas de pays — sinon un lieu
+        # rejeté au verbatim reviendrait par la porte de derrière placer l'item sur la carte.
+        # À la restitution : le front ne retient ce pays que s'il existe dans le référentiel de la
+        # carte, et le marque comme déduit (frontend/src/lib/geo.ts).
+        location_country = result.location_country.strip() if location else ""
 
         analyzed_items.append(
             AnalyzedItem(
@@ -134,6 +153,7 @@ def analyze(state: VeilleState) -> VeilleState:
                 summary=result.summary,
                 citation=result.citation,
                 location=location,
+                location_country=location_country,
                 confidence_score=None,
                 corroborated=None,
             )

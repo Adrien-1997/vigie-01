@@ -15,10 +15,11 @@ def _raw_item(raw_text: str) -> dict:
 
 
 class _FakeAnalysis:
-    def __init__(self, category, citation, location="", title_fr="Titre", summary="Résumé"):
+    def __init__(self, category, citation, location="", location_country="", title_fr="Titre", summary="Résumé"):
         self.category = category
         self.citation = citation
         self.location = location
+        self.location_country = location_country
         self.title_fr = title_fr
         self.summary = summary
 
@@ -76,9 +77,38 @@ def test_analyze_blanks_unverified_location_instead_of_trusting_it(monkeypatch):
     monkeypatch.setattr(
         analyst,
         "classify_item",
-        lambda item: _FakeAnalysis("contrat_armement", "source text about a contract", location="Nowhereland"),
+        lambda item: _FakeAnalysis(
+            "contrat_armement",
+            "source text about a contract",
+            location="Nowhereland",
+            location_country="Nowhereland",
+        ),
     )
 
     result = analyst.analyze({"raw_items": [_raw_item("Actual source text about a contract.")], "analyzed_items": []})
 
     assert result["analyzed_items"][0]["location"] == ""
+    # Le pays déduit n'est pas vérifiable verbatim : son seul ancrage est le lieu dont il est
+    # déduit. Lieu rejeté, pays rejeté — sinon un lieu non vérifié reviendrait placer l'item
+    # sur la carte par un champ que le garde-fou ne couvre pas.
+    assert result["analyzed_items"][0]["location_country"] == ""
+
+
+def test_analyze_keeps_deduced_country_when_location_is_verified(monkeypatch):
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis(
+            "contrat_armement",
+            "source text about a contract",
+            location="Darwin",
+            location_country="Australia",
+        ),
+    )
+
+    result = analyst.analyze(
+        {"raw_items": [_raw_item("Source text about a contract signed in Darwin.")], "analyzed_items": []}
+    )
+
+    assert result["analyzed_items"][0]["location"] == "Darwin"
+    assert result["analyzed_items"][0]["location_country"] == "Australia"

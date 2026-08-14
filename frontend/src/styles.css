@@ -764,10 +764,23 @@ button {
   font-size: 12px;
 }
 
+/* Colonne flex plutôt que marges : la ligne « rattaché par déduction » est conditionnelle,
+   et l'espacement doit rester le même qu'elle soit là ou non. */
+.map-tooltip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 .map-tooltip strong {
-  display: block;
-  margin-bottom: 5px;
   font-size: 13px;
+}
+
+/* Rattachement déduit : une mention discrète mais présente, jamais un signal d'alerte —
+   c'est une réserve sur la provenance du rattachement, pas un défaut de l'item. */
+.map-tooltip .tooltip-note {
+  font-size: 11px;
+  color: var(--ink-muted);
 }
 
 .map-tooltip ul {

@@ -1,6 +1,6 @@
 import type { AnalyzedItem } from "../types";
 import { VERIFIER_CATEGORIES } from "../lib/taxonomy";
-import { resolveLocation } from "../lib/geo";
+import { countryKey, resolveLocation } from "../lib/geo";
 
 const pct = (n: number, d: number) => (d === 0 ? null : `${Math.round((n / d) * 100)} %`);
 
@@ -14,10 +14,12 @@ export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
   const scored = items.filter((i) => i.confidence_score !== null);
   const corroborated = items.filter((i) => i.corroborated === true);
   const stateAffiliated = items.filter((i) => i.state_affiliated);
-  const placed = new Set(
-    items.map((i) => resolveLocation(i.location)?.id).filter((id): id is string => Boolean(id)),
-  );
-  const placeable = items.filter((i) => resolveLocation(i.location) !== null).length;
+  // countryKey et non `.id` : trois entités du topojson n'ont pas de code ISO (cf. lib/geo.ts),
+  // et les compter par `.id` les faisait toutes tomber dans une clé indéfinie, écartée par le
+  // filtre — un item au Kosovo était placé sur la carte mais absent de ce décompte.
+  const matches = items.map((i) => resolveLocation(i.location, i.location_country));
+  const placed = new Set(matches.filter((m) => m !== null).map((m) => countryKey(m.feature)));
+  const placeable = matches.filter((m) => m !== null).length;
 
   return (
     <div className="kpis">

@@ -16,12 +16,26 @@ export const COUNTRIES: CountryFeature[] = collection.features;
  *  ISO numérique : sans repli sur le nom, elles partagent la clé `undefined`. */
 export const countryKey = (f: CountryFeature) => f.id ?? f.properties.name;
 
+// Lettres que NFD ne décompose pas : ce ne sont pas des voyelles accentuées mais des caractères
+// à part entière. Sans translittération explicite elles tombent dans le filtre [^a-z\s] et
+// « Großbritannien » devient « gro britannien », « Tromsø » devient « troms », « Łódź » devient
+// « odz » — aucun ne matche plus rien.
+const TRANSLIT: Record<string, string> = {
+  ß: "ss",
+  ø: "o",
+  æ: "ae",
+  œ: "oe",
+  ł: "l",
+  đ: "d",
+  ð: "d",
+  þ: "th",
+  ı: "i",
+};
+
 const normalize = (s: string) =>
   s
     .toLowerCase()
-    // Le eszett n'est pas un diacritique : sans cette translittération il tombe dans le filtre
-    // ci-dessous et « Großbritannien » devient « gro britannien », qui ne matche plus rien.
-    .replace(/ß/g, "ss")
+    .replace(/[ßøæœłđðþı]/g, (c) => TRANSLIT[c])
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[^a-z\s]/g, " ")
@@ -35,7 +49,8 @@ const normalize = (s: string) =>
  *  la langue de la source, pas en français. Sur un run réel, « Großbritannien » et « Vereinigten
  *  Staaten » ressortaient non rattachés faute d'entrée allemande — d'où ce référentiel multilingue.
  *  Traduire un nom de pays vers l'index de la carte n'est pas une déduction : le pays est nommé
- *  explicitement dans la source. Un rattachement ville→pays en serait une, et n'est pas fait ici. */
+ *  explicitement dans la source. Le rattachement d'une localité à son pays en est une : il passe
+ *  par `location_country`, produit par le LLM et signalé comme déduit jusque dans la légende. */
 const ALIASES: Record<string, string> = {
   // Allemand
   "vereinigte staaten": "United States of America",
@@ -199,33 +214,161 @@ const ALIASES: Record<string, string> = {
   slovaquie: "Slovakia",
   slovenie: "Slovenia",
   "coree du sud republique de coree": "South Korea",
+  // Formes anglaises longues ou officielles que le topojson abrège. Le champ `location_country`
+  // est produit en anglais par le LLM : sans ces entrées, « Czech Republic » ou « Democratic
+  // Republic of the Congo » seraient rejetés alors que le pays visé existe bien sur la carte.
+  "czech republic": "Czechia",
+  "democratic republic of the congo": "Dem. Rep. Congo",
+  "dr congo": "Dem. Rep. Congo",
+  drc: "Dem. Rep. Congo",
+  "republic of the congo": "Congo",
+  "bosnia and herzegovina": "Bosnia and Herz.",
+  "north macedonia": "Macedonia",
+  "south sudan": "S. Sudan",
+  "central african republic": "Central African Rep.",
+  "dominican republic": "Dominican Rep.",
+  "equatorial guinea": "Eq. Guinea",
+  "falkland islands": "Falkland Is.",
+  "solomon islands": "Solomon Is.",
+  "east timor": "Timor-Leste",
+  "timor leste": "Timor-Leste",
+  "western sahara": "W. Sahara",
+  swaziland: "eSwatini",
+  eswatini: "eSwatini",
+  burma: "Myanmar",
+  "ivory coast": "Côte d'Ivoire",
+  "northern cyprus": "N. Cyprus",
+  "russian federation": "Russia",
+  "republic of korea": "South Korea",
+  dprk: "North Korea",
+  "state of palestine": "Palestine",
 };
+
+/** Libellés français des entités du topojson. L'interface est en français : sans cette table,
+ *  la carte affiche « United States of America » et « Germany » dans une UI qui ne l'est pas.
+ *
+ *  Table d'exceptions : une entité absente d'ici s'affiche sous son nom Natural Earth, ce qui
+ *  n'est correct que si ce nom est déjà le nom français (Angola, Canada, Mali, Qatar…). Toute
+ *  entité dont le nom français diffère, ne serait-ce que d'un accent, doit donc figurer ici. */
+const COUNTRY_FR: Record<string, string> = {
+  Albania: "Albanie", Algeria: "Algérie", Antarctica: "Antarctique", Argentina: "Argentine",
+  Armenia: "Arménie", Australia: "Australie", Austria: "Autriche", Azerbaijan: "Azerbaïdjan",
+  Belarus: "Biélorussie", Belgium: "Belgique", Benin: "Bénin", Bhutan: "Bhoutan",
+  Bolivia: "Bolivie", "Bosnia and Herz.": "Bosnie-Herzégovine", Brazil: "Brésil",
+  Bulgaria: "Bulgarie", Cambodia: "Cambodge", Cameroon: "Cameroun",
+  "Central African Rep.": "République centrafricaine", Chad: "Tchad", Chile: "Chili",
+  China: "Chine", Colombia: "Colombie", Croatia: "Croatie", Cyprus: "Chypre",
+  Czechia: "Tchéquie", "Dem. Rep. Congo": "République démocratique du Congo",
+  Denmark: "Danemark", "Dominican Rep.": "République dominicaine", Ecuador: "Équateur",
+  Egypt: "Égypte", "El Salvador": "Salvador", "Eq. Guinea": "Guinée équatoriale",
+  Eritrea: "Érythrée", Estonia: "Estonie", Ethiopia: "Éthiopie",
+  "Falkland Is.": "Îles Malouines", Fiji: "Fidji", Finland: "Finlande",
+  "Fr. S. Antarctic Lands": "Terres australes françaises", Gambia: "Gambie",
+  Georgia: "Géorgie", Germany: "Allemagne", Greece: "Grèce", Greenland: "Groenland",
+  Guinea: "Guinée", "Guinea-Bissau": "Guinée-Bissau", Haiti: "Haïti", Hungary: "Hongrie",
+  Iceland: "Islande", India: "Inde", Indonesia: "Indonésie", Iraq: "Irak", Ireland: "Irlande",
+  Israel: "Israël", Italy: "Italie", Jamaica: "Jamaïque", Japan: "Japon", Jordan: "Jordanie",
+  Kuwait: "Koweït", Kyrgyzstan: "Kirghizistan", Latvia: "Lettonie", Lebanon: "Liban",
+  Liberia: "Libéria", Libya: "Libye", Lithuania: "Lituanie", Macedonia: "Macédoine du Nord",
+  Malaysia: "Malaisie", Mauritania: "Mauritanie", Mexico: "Mexique", Moldova: "Moldavie",
+  Mongolia: "Mongolie", Montenegro: "Monténégro", Morocco: "Maroc", Myanmar: "Birmanie",
+  "N. Cyprus": "Chypre du Nord", Namibia: "Namibie", Nepal: "Népal", Netherlands: "Pays-Bas",
+  "New Caledonia": "Nouvelle-Calédonie", "New Zealand": "Nouvelle-Zélande",
+  "North Korea": "Corée du Nord", Norway: "Norvège", "Papua New Guinea": "Papouasie-Nouvelle-Guinée",
+  Peru: "Pérou", Poland: "Pologne", "Puerto Rico": "Porto Rico", Romania: "Roumanie",
+  Russia: "Russie", "S. Sudan": "Soudan du Sud", "Saudi Arabia": "Arabie saoudite",
+  Senegal: "Sénégal", Serbia: "Serbie", Slovakia: "Slovaquie", Slovenia: "Slovénie",
+  "Solomon Is.": "Îles Salomon", Somalia: "Somalie", "South Africa": "Afrique du Sud",
+  "South Korea": "Corée du Sud", Spain: "Espagne", Sudan: "Soudan", Sweden: "Suède",
+  Switzerland: "Suisse", Syria: "Syrie", Taiwan: "Taïwan", Tajikistan: "Tadjikistan",
+  Tanzania: "Tanzanie", Thailand: "Thaïlande", "Timor-Leste": "Timor oriental",
+  "Trinidad and Tobago": "Trinité-et-Tobago", Tunisia: "Tunisie", Turkey: "Turquie",
+  Turkmenistan: "Turkménistan", Uganda: "Ouganda",
+  "United Arab Emirates": "Émirats arabes unis", "United Kingdom": "Royaume-Uni",
+  "United States of America": "États-Unis", Uzbekistan: "Ouzbékistan",
+  "W. Sahara": "Sahara occidental", Yemen: "Yémen", Zambia: "Zambie", eSwatini: "Eswatini",
+};
+
+/** Nom d'un pays tel qu'affiché dans l'interface (français). */
+export const countryLabel = (f: CountryFeature) => COUNTRY_FR[f.properties.name] ?? f.properties.name;
 
 const BY_NAME = new Map<string, CountryFeature>();
 for (const f of COUNTRIES) BY_NAME.set(normalize(f.properties.name), f);
 
-/** Résout un `location` en texte libre vers un identifiant pays du topojson.
- *  Retourne null si le lieu est vide (item non localisé) ou non résolu (mer, région,
- *  organisation) — les deux cas sont comptés et affichés séparément par la carte plutôt
- *  que silencieusement écartés (cf. docs/cadrage.md §11). */
-export function resolveLocation(location: string): CountryFeature | null {
-  const key = normalize(location);
+/** Correspondance certaine : le texte EST un nom de pays, à un alias ou une langue près. */
+function matchExact(name: string): CountryFeature | null {
+  const key = normalize(name);
   if (!key) return null;
 
   const aliased = ALIASES[key];
   if (aliased) return BY_NAME.get(normalize(aliased)) ?? null;
 
-  const direct = BY_NAME.get(key);
-  if (direct) return direct;
+  return BY_NAME.get(key) ?? null;
+}
 
-  // « Taiwan Strait », « Northern Israel » : un nom de pays qualifié reste attribuable.
-  // Seuil de 5 caractères des deux côtés : sans lui, « us » matcherait « Russia ».
-  if (key.length >= 5) {
-    for (const [name, f] of BY_NAME) {
-      if (name.length >= 5 && (key.includes(name) || name.includes(key))) return f;
+/** Correspondance approchée : « Taiwan Strait », « Northern Israel » — un nom de pays qualifié
+ *  reste attribuable. Seuil de 5 caractères des deux côtés : sans lui, « us » matcherait « Russia ».
+ *
+ *  Retourne null dès que plusieurs pays correspondent, au lieu du premier trouvé. Mesuré sur un
+ *  run réel : « Korea » est contenu dans « South Korea » ET dans « North Korea », et un article
+ *  nord-coréen était placé sur la Corée du Sud — l'ordre d'itération du topojson tranchait un
+ *  choix qu'il n'a aucun titre à trancher. Un repli qui a deux candidats n'est pas une
+ *  approximation, c'est un tirage au sort : mieux vaut échouer et laisser la main au pays déduit. */
+function matchLoose(name: string): CountryFeature | null {
+  const key = normalize(name);
+  if (key.length < 5) return null;
+
+  let found: CountryFeature | null = null;
+  for (const [n, f] of BY_NAME) {
+    if (n.length >= 5 && (key.includes(n) || n.includes(key))) {
+      if (found && found !== f) return null;
+      found = f;
     }
   }
-  return null;
+  return found;
+}
+
+/** Un pays nommé dans la source (`inferred: false`) et un pays déduit d'une localité par le LLM
+ *  (`inferred: true`) placent tous deux un item sur la carte, mais n'engagent pas la même chose :
+ *  le second ne repose sur aucun extrait vérifiable. Sans ce drapeau, la distinction serait perdue
+ *  exactement au moment où elle compte — quand on lit la couverture de la carte. */
+export interface LocationMatch {
+  feature: CountryFeature;
+  inferred: boolean;
+}
+
+/** Résout un item vers un pays du topojson, du plus sûr au moins sûr.
+ *
+ *  1. `location` nomme exactement un pays : c'est la source qui parle, rien à déduire.
+ *  2. `location` contient sans ambiguïté un nom de pays (« Northern Israel ») : la source parle
+ *     encore, approximativement mais sans arbitrage.
+ *  3. `location_country`, déduit par le LLM (« Darwin » → « Australia »), n'est retenu que s'il
+ *     désigne exactement une entité du topojson — pas de repli approché sur ce champ, c'est le
+ *     seul qui n'a aucun ancrage dans le texte, donc celui qu'on valide le plus strictement.
+ *     Le vocabulaire étant fermé, un pays inventé retombe en « non rattaché » plutôt que de
+ *     peindre le mauvais pays.
+ *
+ *  L'ordre compte : le déduit passe après l'approché pour ne pas effacer une provenance réelle,
+ *  mais avant l'échec, pour rattraper les localités (« Darwin ») et les cas où l'approché refuse
+ *  de trancher (« Korea »).
+ *
+ *  Retourne null si le lieu est vide (item non localisé) ou non rattachable (haute mer, région
+ *  transnationale, organisation) — ces cas sont comptés et affichés par la carte plutôt que
+ *  silencieusement écartés (cf. docs/cadrage.md §11). */
+export function resolveLocation(location: string, locationCountry?: string): LocationMatch | null {
+  // Sans lieu vérifié, le pays déduit n'a plus rien à quoi se rattacher. Le backend le vide déjà
+  // dans ce cas, mais l'invariant est réaffirmé ici : trois appelants sur quatre ne testent pas
+  // `location` de leur côté, et ne doivent pas avoir à connaître cette promesse pour être justes.
+  if (!location.trim()) return null;
+
+  const exact = matchExact(location);
+  if (exact) return { feature: exact, inferred: false };
+
+  const loose = matchLoose(location);
+  if (loose) return { feature: loose, inferred: false };
+
+  const deduced = locationCountry ? matchExact(locationCountry) : null;
+  return deduced ? { feature: deduced, inferred: true } : null;
 }
 
 /** Pays des sources (backend/config.py). "INT" = source multi-pays / institutionnelle UE. */

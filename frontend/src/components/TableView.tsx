@@ -1,6 +1,6 @@
 import type { AnalyzedItem } from "../types";
 import { CATEGORY_LABEL, CATEGORY_VAR } from "../lib/taxonomy";
-import { sourceCountryLabel } from "../lib/geo";
+import { countryLabel, resolveLocation, sourceCountryLabel } from "../lib/geo";
 
 /** Vue tableau : canal d'accessibilité exigé par la palette (trois teintes catégorielles
  *  passent sous 3:1 en mode clair) et vue de travail pour comparer les scores en colonne. */
@@ -19,30 +19,45 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={item.link}>
-              <td>
-                <i className="dot" style={{ ["--dot" as string]: CATEGORY_VAR[item.category] }} />{" "}
-                {CATEGORY_LABEL[item.category]}
-              </td>
-              <td className="wrap">
-                <a href={item.link} target="_blank" rel="noopener noreferrer">
-                  {item.title_fr}
-                </a>
-              </td>
-              <td>
-                {item.source}
-                {item.state_affiliated && " · média d'État"}
-                <br />
-                <span style={{ color: "var(--ink-muted)" }}>{sourceCountryLabel(item.country)}</span>
-              </td>
-              <td>{item.location || "—"}</td>
-              <td className="num">{item.confidence_score?.toFixed(2) ?? "non vérifié"}</td>
-              <td>
-                {item.corroborated === null ? "—" : item.corroborated ? "recoupé" : "source unique"}
-              </td>
-            </tr>
-          ))}
+          {items.map((item) => {
+            // La carte agrège les rattachements déduits ; le tableau est le seul endroit où
+            // l'analyste peut voir lequel de ses items a été placé sans que la source le dise.
+            const match = resolveLocation(item.location, item.location_country);
+            return (
+              <tr key={item.link}>
+                <td>
+                  <i className="dot" style={{ ["--dot" as string]: CATEGORY_VAR[item.category] }} />{" "}
+                  {CATEGORY_LABEL[item.category]}
+                </td>
+                <td className="wrap">
+                  <a href={item.link} target="_blank" rel="noopener noreferrer">
+                    {item.title_fr}
+                  </a>
+                </td>
+                <td>
+                  {item.source}
+                  {item.state_affiliated && " · média d'État"}
+                  <br />
+                  <span style={{ color: "var(--ink-muted)" }}>{sourceCountryLabel(item.country)}</span>
+                </td>
+                <td className="wrap">
+                  {item.location || "—"}
+                  {match?.inferred && (
+                    <>
+                      <br />
+                      <span style={{ color: "var(--ink-muted)" }}>
+                        → {countryLabel(match.feature)} (déduit)
+                      </span>
+                    </>
+                  )}
+                </td>
+                <td className="num">{item.confidence_score?.toFixed(2) ?? "non vérifié"}</td>
+                <td>
+                  {item.corroborated === null ? "—" : item.corroborated ? "recoupé" : "source unique"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
