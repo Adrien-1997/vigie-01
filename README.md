@@ -2,7 +2,7 @@
 
 Agent IA autonome qui collecte, classe et synthétise quotidiennement des sources ouvertes sur un périmètre défense/géopolitique restreint, avec traçabilité systématique de chaque affirmation vers sa source.
 
-**Statut** : backend V1 fonctionnel de bout en bout (collecte → dédoublonnage → classification → API → frontend), déploiement cloud à venir. Détail dans [Roadmap](#roadmap).
+**Statut** : backend V1 fonctionnel de bout en bout (collecte → dédoublonnage → classification → vérification → API → frontend), première tranche du vérificateur V2 livrée, déploiement cloud à venir. Détail dans [Roadmap](#roadmap).
 
 ![Aperçu du digest](docs/screenshot.png)
 
@@ -14,10 +14,12 @@ Cadrage complet — problématique, périmètre MECE, alternatives évaluées, K
 
 **Périmètre V1** : export control, contrats d'armement, mouvements militaires, diplomatie défense, programmes industriels — filtrage thématique (le lieu est extrait comme métadonnée, sans restreindre la collecte, cf. cadrage §4).
 
+**Sources** : 16 flux RSS gratuits, organisés par pays plutôt que par thème — les 10 premiers exportateurs mondiaux d'armement (classement SIPRI *Trends in International Arms Transfers*, données 2020-24) plus l'Iran et la Corée du Nord pour la couverture export-contrôle. Chaque flux est validé en direct avant intégration ; les sources d'État (seule option gratuite disponible pour plusieurs de ces pays) sont marquées `state_affiliated` et restent visibles comme telles en aval, plutôt que d'être exclues ou mélangées silencieusement au reste.
+
 ## Architecture
 
 ```
-Sources (RSS, presse spécialisée, communiqués)
+Sources (RSS par pays, presse spécialisée, communiqués)
         │
         ▼
   Agent collecteur ──► Mémoire courte ──► Agent analyste
@@ -26,8 +28,9 @@ Sources (RSS, presse spécialisée, communiqués)
                           backend/memory/     backend/agents/analyst.py
                           store.py                   │
                                                       ▼
-                                            Agent vérificateur (V2)
-                                            recoupement multi-sources,
+                                            Agent vérificateur
+                                            (backend/agents/verifier.py)
+                                            recoupement sur l'historique,
                                             score de confiance
                                                       │
                                                       ▼
@@ -38,6 +41,8 @@ Sources (RSS, presse spécialisée, communiqués)
 
 Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étape est un nœud, l'état partagé (`VeilleState`, `backend/state.py`) transporte les items d'un nœud à l'autre. Le dédoublonnage est placé *avant* l'appel LLM, pas après, pour ne pas consommer de budget sur des items déjà vus. LangSmith trace chaque nœud sans instrumentation manuelle.
 
+**Workflow déterministe et boucle agentique, séparés volontairement.** Les nœuds `collect`/`deduplicate`/`analyze` forment un chemin de code fixe : un appel LLM par item, aucune décision dynamique du modèle — c'est le bon compromis pour une tâche de classification traçable et bon marché. Le nœud `verify` est le seul point d'autonomie réelle : pour les catégories les plus sensibles (`export_control`, `contrat_armement`), le modèle dispose d'un outil de recherche dans l'historique des items analysés et décide lui-même s'il l'appelle, combien de fois, avant de conclure. Cette escalade est bornée sur trois axes (catégories éligibles, nombre d'items par run, nombre d'itérations d'outil par item) pour que l'agentivité reste un coût maîtrisé et non proportionnel au volume collecté.
+
 ## Stack
 
 | Composant       | Choix                                    | Statut                |
@@ -47,7 +52,8 @@ Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étap
 | Backend         | Python 3.13, FastAPI                     | construit (V1)          |
 | Observabilité   | LangSmith (tracing natif par nœud)       | construit (V1)          |
 | Frontend        | HTML/JS statique, sans build             | construit (V1)          |
-| Vérificateur / carte sectorisée | LangGraph + score de confiance | prévu (V2)     |
+| Vérificateur (recoupement, score de confiance) | LangGraph + tool-calling borné | 1ʳᵉ tranche construite (catégories sensibles) |
+| Carte sectorisée interactive | à partir du champ `location` déjà extrait | prévu (V2) |
 | Déploiement     | Cloud Run + Cloud Scheduler (cron)        | prévu                   |
 | Stockage        | GCS (raw/processed), Firestore (état)     | à valider (V1 : fichiers locaux gitignored) |
 
@@ -57,8 +63,9 @@ Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étap
 vigie/
 ├── backend/
 │   ├── agents/
-│   │   ├── collector.py       # collecte RSS multi-sources, sources validées en direct
-│   │   └── analyst.py         # classification MECE, résumé FR, citation + lieu vérifiés
+│   │   ├── collector.py       # collecte RSS par pays, sources validées en direct
+│   │   ├── analyst.py         # classification MECE, résumé FR, citation + lieu vérifiés
+│   │   └── verifier.py        # recoupement + score de confiance (boucle tool-calling bornée)
 │   ├── api/
 │   │   └── main.py            # FastAPI : /health, /run, /events
 │   ├── eval/
@@ -66,16 +73,18 @@ vigie/
 │   │   ├── annotate.py        # annotation manuelle interactive
 │   │   └── score.py           # précision mesurée vs cible (cadrage §7)
 │   ├── memory/
-│   │   └── store.py           # dédoublonnage court terme (avant l'appel LLM)
-│   ├── config.py               # sources RSS, garde-fous obligatoires
+│   │   └── store.py           # dédoublonnage court terme + historique de recoupement
+│   ├── config.py               # sources RSS par pays, garde-fous obligatoires
 │   ├── guardrails.py           # plafond d'appels LLM quotidien
 │   ├── graph.py                 # assemblage StateGraph LangGraph
 │   ├── state.py                 # schéma d'état partagé (VeilleState)
 │   └── requirements.txt
 ├── frontend/
 │   └── index.html               # digest — HTML/JS statique, appelle l'API réelle
+├── tests/                       # pytest — LLM et flux RSS mockés
 ├── docs/
-│   └── cadrage.md               # cadrage produit (problématique, MECE, risques, KPIs)
+│   ├── cadrage.md               # cadrage produit (problématique, MECE, risques, KPIs)
+│   └── slides.html              # support de présentation navigable
 ├── .env.example
 └── README.md
 ```
@@ -109,8 +118,10 @@ Ouvrir `http://localhost:5500`, puis cliquer sur **Lancer la collecte** (déclen
 ## Roadmap
 
 - [x] V1 — collecte + dédoublonnage + classification + résumé tracé + API + frontend
+- [x] V1 — sources organisées par pays (top 10 exportateurs SIPRI + Iran/Corée du Nord), validées en direct
 - [ ] V1 — déploiement Cloud Run + Cloud Scheduler
-- [ ] V2 — agent vérificateur (recoupement, score de confiance) + carte sectorisée interactive
+- [~] V2 — agent vérificateur : recoupement et score de confiance livrés sur les catégories sensibles ; extension aux autres catégories et `fetch_full_article` à venir
+- [ ] V2 — carte sectorisée interactive
 - [ ] V3 — mémoire interrogeable sur l'historique (requêtes en langage naturel)
 
 ## Métriques de suivi
@@ -122,10 +133,14 @@ Définitions et cibles détaillées dans [`docs/cadrage.md` §7](docs/cadrage.md
 - Temps de traitement bout en bout par cycle
 - Taux de faux positifs jugés critiques par l'analyste
 
+Deux mesures de précision ont été conduites (n=30 puis n=88 après la reconfiguration des sources). Les résultats, les correctifs de définition qu'ils ont déclenchés et les réserves méthodologiques qui les accompagnent sont détaillés en [§7](docs/cadrage.md) — y compris ce qui reste à revérifier avant de considérer le KPI comme tranché.
+
 ## Garde-fous (implémentés dès V1)
 
-- `backend/guardrails.py` — plafond d'appels LLM par jour, testé dans les deux sens (déclenchement réel vérifié, run normal non affecté)
+- `backend/guardrails.py` — plafond d'appels LLM par jour, testé dans les deux sens (déclenchement réel vérifié, run normal non affecté). Couvre aussi les appels du vérificateur, sans compteur séparé
 - `backend/graph.py` — plafond de steps par run (`MAX_STEPS_PER_RUN`), appliqué via le `recursion_limit` LangGraph — protection contre une boucle d'agent incontrôlée (cadrage §8), testée dans les deux sens
+- `backend/agents/verifier.py` — double plafond sur l'escalade agentique : nombre d'items escaladés par run et nombre d'itérations d'outil par item. Vérifié en code et non via `MAX_STEPS_PER_RUN`, qui compte les nœuds du graphe et ne borne pas une boucle interne à un nœud
+- `backend/agents/collector.py` — fenêtre de fraîcheur (`COLLECTION_LOOKBACK_HOURS`) : plusieurs flux institutionnels exposent des mois d'historique sans pagination par date ; sans ce filtre, un premier run soumettrait tout l'arriéré au budget quotidien d'un seul coup
 - `backend/agents/analyst.py` — traçabilité systématique : un résumé sans citation vérifiable dans le texte source est rejeté automatiquement, pas seulement signalé
 
 Les deux premiers garde-fous étaient initialement déclarés en config sans être vérifiés en code — écart trouvé par auto-audit et corrigé, plutôt que découvert en revue externe. C'est le type de vérification qu'un audit technique répété périodiquement pendant le développement doit attraper.
@@ -138,4 +153,4 @@ Les deux premiers garde-fous étaient initialement déclarés en config sans êt
 
 ## Note
 
-Projet de démonstration à vocation portfolio. Le pipeline et l'API sont réels et fonctionnels (sources RSS live, appels LLM réels, mesures réelles) ; le déploiement cloud et le vérificateur multi-sources restent à construire.
+Projet de démonstration à vocation portfolio. Le pipeline et l'API sont réels et fonctionnels (sources RSS live, appels LLM réels, mesures réelles) ; le déploiement cloud reste à construire, et le vérificateur ne couvre pour l'instant que les catégories les plus sensibles — les autres items sortent sans score de confiance plutôt qu'avec un score fabriqué par défaut.

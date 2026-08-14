@@ -238,9 +238,9 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 4px;
-    padding: 16px 18px;
-    flex: 1 1 160px;
-    min-width: 150px;
+    padding: 14px 13px;
+    flex: 1 1 128px;
+    min-width: 120px;
   }
   .pipe-node .k {
     font-family: var(--font-mono);
@@ -258,7 +258,7 @@
     justify-content: center;
     color: var(--muted);
     font-family: var(--font-mono);
-    padding: 0 10px;
+    padding: 0 5px;
     flex: 0 0 auto;
   }
 
@@ -431,15 +431,17 @@
       <p class="eyebrow">Architecture</p>
       <h2>Un pipeline agentique traçable, pas un script</h2>
       <div class="pipeline">
-        <div class="pipe-node"><span class="k">Sources</span><p>Flux RSS multi-sources, validés en direct</p></div>
+        <div class="pipe-node"><span class="k">Sources</span><p>16 flux RSS, sélection par pays, validés en direct</p></div>
         <div class="pipe-arrow">→</div>
         <div class="pipe-node"><span class="k">Collecte</span><p>collector.py</p></div>
         <div class="pipe-arrow">→</div>
         <div class="pipe-node"><span class="k">Dédoublonnage</span><p>avant l'appel LLM, pas après</p></div>
         <div class="pipe-arrow">→</div>
         <div class="pipe-node"><span class="k">Analyse</span><p>classification + résumé + citation vérifiée</p></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node"><span class="k">Vérification</span><p>recoupement + score de confiance, boucle d'outil bornée</p></div>
       </div>
-      <p class="muted-note" style="margin-top:18px">État partagé (<code>VeilleState</code>) entre les nœuds, chaque nœud tracé nativement — sans instrumentation manuelle.</p>
+      <p class="muted-note" style="margin-top:18px">État partagé (<code>VeilleState</code>) entre les nœuds, chaque nœud tracé nativement — sans instrumentation manuelle. Les trois premiers nœuds sont un workflow déterministe ; seul le vérificateur laisse le modèle décider de ses propres appels d'outil, sous double plafond.</p>
     </div>
   </section>
 
@@ -467,7 +469,7 @@
           <tr><td>Équipe concernée</td><td>4 analystes dédiés</td><td class="num">—</td></tr>
           <tr><td>Gain de temps</td><td>90 → 30 min de revue / jour / analyste</td><td class="num">528 h/an</td></tr>
           <tr class="total"><td>Valeur temps</td><td>528 h × 60 €/h chargé</td><td class="num">~32 000 €/an</td></tr>
-          <tr><td>Coût du système (mesuré réel)</td><td>110 items/j × 1 appel LLM/item</td><td class="num">~110 €/an</td></tr>
+          <tr><td>Coût du système (mesuré réel)</td><td>~200 items/j × 1 appel + escalade plafonnée</td><td class="num">~140 €/an</td></tr>
         </tbody>
       </table>
       <p class="muted-note" style="margin-top:16px">Ratio favorable même en scénario dégradé (gain divisé par deux). Le bénéfice qualitatif — standardisation, traçabilité — reste déterminant au-delà du seul temps.</p>
@@ -493,12 +495,12 @@
         <div class="card">
           <span class="badge medium">Moyenne</span>
           <h3>Biais de sources</h3>
-          <p>Suivi de couverture par source, revue périodique de la liste.</p>
+          <p>Sélection par pays sur critère SIPRI, médias d'État marqués comme tels dans le digest.</p>
         </div>
         <div class="card">
           <span class="badge medium">Moyenne</span>
           <h3>Dérive de coût LLM</h3>
-          <p>Plafond d'appels/jour — codé et testé, pas seulement documenté.</p>
+          <p>Plafond d'appels/jour + escalade agentique bornée — codés et testés, pas seulement documentés.</p>
         </div>
       </div>
     </div>
@@ -512,8 +514,10 @@
       <ul class="points">
         <li><strong class="mark">Garde-fou déclaré, non câblé.</strong> Le plafond d'appels LLM/jour existait dans la config sans être vérifié dans le code. Trouvé par auto-audit, corrigé, testé dans les deux sens.</li>
         <li><strong class="mark">Précision auto-questionnée.</strong> 27/30 items en accord avec l'annotation manuelle (90 %, au-dessus de la cible 85 %) — retenu seulement après avoir requestionné l'annotation elle-même, ce qui a révélé des définitions de catégorie encore ambiguës plutôt qu'un défaut du classifieur.</li>
+        <li><strong class="mark">Deuxième mesure, plus sévère.</strong> Après la reprise des sources : 73/88 (83 %), sous la cible. Les désaccords se concentraient sur deux frontières de catégorie mal définies, corrigées dans le cadrage et le prompt. Le protocole d'annotation lui-même comportait un biais, documenté dans le cadrage plutôt que le chiffre présenté comme acquis.</li>
+        <li><strong class="mark">Bug trouvé par le test, pas par la relecture.</strong> La reprise des sources a fait apparaître des flux exposant des mois d'historique : sans fenêtre de fraîcheur, le premier run aurait consommé le budget d'une journée entière sur l'arriéré avant de s'interrompre.</li>
       </ul>
-      <p class="muted-note" style="margin-top:6px">Le réflexe : tester contre des données réelles avant de déclarer un composant fait, et se remettre en question avant d'accepter un bon résultat.</p>
+      <p class="muted-note" style="margin-top:6px">Le réflexe : tester contre des données réelles avant de déclarer un composant fait, se remettre en question avant d'accepter un bon résultat, et documenter ce qui reste non vérifié plutôt que de l'omettre.</p>
     </div>
   </section>
 
@@ -528,17 +532,25 @@
       </div>
       <div class="roadmap-row">
         <span class="stage">V1</span>
+        <div><span class="status-dot done"></span>Sources par pays : top 10 exportateurs SIPRI + Iran/Corée du Nord, chaque flux validé en direct</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="stage">V1</span>
         <div><span class="status-dot later"></span>Déploiement Cloud Run + Cloud Scheduler — séquencé après un pipeline local qui tourne réellement</div>
       </div>
       <div class="roadmap-row">
         <span class="stage">V2</span>
-        <div><span class="status-dot next"></span>Agent vérificateur : recoupement multi-sources, score de confiance, carte sectorisée</div>
+        <div><span class="status-dot done"></span>Vérificateur, 1<sup>re</sup> tranche : recoupement sur l'historique et score de confiance, sur les catégories les plus sensibles</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="stage">V2</span>
+        <div><span class="status-dot next"></span>Étendre le vérificateur aux autres catégories, texte intégral des articles, carte sectorisée</div>
       </div>
       <div class="roadmap-row">
         <span class="stage">V3</span>
         <div><span class="status-dot later"></span>Mémoire interrogeable sur l'historique (requêtes en langage naturel)</div>
       </div>
-      <p class="muted-note" style="margin-top:18px">Recommandation : prioriser le vérificateur V2 avant le déploiement — c'est le seul des 3 enjeux critiques encore non couvert.</p>
+      <p class="muted-note" style="margin-top:18px">Recommandation : achever la couverture du vérificateur avant le déploiement — le score de confiance n'est produit que sur deux des cinq catégories, et les items non couverts sortent volontairement sans score plutôt qu'avec une valeur par défaut trompeuse.</p>
     </div>
   </section>
 

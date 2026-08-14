@@ -38,7 +38,9 @@ Le point critique n'est pas la collecte (déjà partiellement automatisable par 
 | Gain de temps | 60 min/jour/analyste × 4 analystes × ~220 j ouvrés/an | ~528 h/an |
 | Coût chargé analyste (ordre de grandeur marché) | Hypothèse | ~60 €/h |
 | **Valeur temps estimée** | 528 h × 60 € | **~32 000 €/an** |
-| **Coût réel du système (mesuré)** | 110 items/jour × 1 appel LLM/item × 365 j, coût par appel mesuré en production | **~110 €/an** |
+| **Coût réel du système (mesuré)** | ~200 items/jour × 1 appel de classification, plus l'escalade du vérificateur (plafonnée) ; coût par appel mesuré en conditions réelles | **~140 €/an** (borne haute ~160 €/an si l'escalade sature ses plafonds) |
+
+Le coût par appel (0,0018 $, mesuré : ~667 tokens d'entrée / ~231 de sortie) est stable ; c'est le volume qui pilote la facture. La reprise de la sélection des sources (§4) a environ doublé le volume quotidien sans changer l'ordre de grandeur du coût — à cette échelle, le poste de dépense réel n'est pas la classification de masse mais l'escalade agentique du vérificateur, dont le coût est proportionnel au nombre d'items escaladés et non au volume collecté. C'est la raison d'être des deux plafonds documentés en §8.
 
 Le ratio valeur/coût reste favorable même avec des hypothèses dégradées (ex. gain de temps divisé par deux). L'essentiel du bénéfice attendu n'est de toute façon pas uniquement le temps mais la standardisation de la lecture des signaux faibles et la traçabilité systématique — qualitatives, plus difficiles à monétiser, mais tout aussi déterminantes dans la décision d'adoption.
 
@@ -47,14 +49,27 @@ Le ratio valeur/coût reste favorable même avec des hypothèses dégradées (ex
 ### Inclus (V1)
 - **Thématiques** : export control (licences, sanctions, embargos), contrats d'armement, mouvements militaires, diplomatie défense, programmes industriels.
 - **Zone géographique** : mondiale — le filtrage MECE est thématique uniquement (cf. révision ci-dessous), le lieu de chaque item est extrait comme métadonnée sans restreindre la collecte.
-- **Sources** : presse spécialisée défense, communiqués officiels, flux RSS publics.
-- **Langues** : français, anglais.
-- **Horizon temporel** : veille quotidienne (actualité des dernières 24h), pas d'historique profond en V1.
+- **Sources** : presse spécialisée défense, communiqués officiels, flux RSS publics — sélection par pays, cf. méthodologie ci-dessous.
+- **Langues** : anglais, français, allemand, italien, espagnol (la classification est multilingue ; la restitution est en français).
+- **Horizon temporel** : veille quotidienne (fenêtre de fraîcheur de 48 h à la collecte), pas d'historique profond en V1.
+
+#### Méthodologie de sélection des sources
+
+La première liste de sources (5 flux) avait été constituée par disponibilité — ce qui exposait un déséquilibre assumé vers l'actualité américaine et francophone. Sélection reprise sur un critère explicite et citable plutôt que sur la commodité :
+
+1. **Colonne vertébrale géographique** : les 10 premiers exportateurs mondiaux d'armement selon le classement SIPRI (*Trends in International Arms Transfers*, données 2020-24), qui représentent ~89 % des exportations mondiales. Ce classement couvre directement trois des cinq catégories du périmètre (contrats, programmes industriels, mouvements).
+2. **Ajout séparé pour l'export-contrôle** : l'Iran et la Corée du Nord, absents d'un classement par volume d'exportation mais centraux pour la catégorie `export_control` (régimes sous embargo actif). Ils sont ajoutés comme une liste fixe distincte, pas intégrés artificiellement au top 10.
+3. **Quota par *type* de source plutôt que par nombre brut** : viser, par pays, une source institutionnelle et une à deux sources de presse spécialisée. Un nombre strictement égal de flux par pays égaliserait l'effort d'échantillonnage sans égaliser la représentativité réelle — le volume d'actualité défense produit par les États-Unis et la France est objectivement supérieur à celui du Brésil ou de la Corée du Sud.
+4. **Validation empirique avant intégration** : chaque flux candidat est testé en direct (disponibilité, validité du format, fraîcheur) avant d'entrer dans `backend/config.py`. Sur 19 candidats identifiés, 7 se sont révélés inexploitables (erreurs 403/404, DNS, certificat invalide) et ont été remplacés par des alternatives testées.
+
+**Traitement des sources d'État.** Pour la Chine, la Russie, l'Iran et la Corée du Nord, les seuls flux RSS gratuits disponibles sont des médias d'État ou d'agences semi-officielles. Trois options se présentaient : les exclure (angle mort sur des pays centraux pour l'export-contrôle), les inclure sans distinction (biais de propagande non déclaré), ou les inclure en marquant explicitement leur provenance. La troisième a été retenue : un champ `state_affiliated` est porté par la source et propagé jusqu'au digest, dans la même logique de traçabilité que la citation vérifiée (§8) — l'information reste collectée, mais sa nature est visible par l'analyste plutôt que noyée dans le flux général.
 
 #### Révision : filtrage géographique retiré du critère de collecte
 
 Version initiale du cadrage : périmètre restreint à la zone Atlantique-Méditerranée, appliqué comme
-critère de rejet. Revu après test sur données réelles : deux des cinq sources confirmées (Breaking
+critère de rejet. Revu après test sur données réelles — à l'époque de cette révision, la liste de
+sources comptait 5 flux, avant la sélection par pays décrite ci-dessus. Deux des cinq sources
+confirmées d'alors (Breaking
 Defense, Defense News) publient majoritairement de l'actualité domestique américaine sans jamais
 nommer explicitement un pays de la zone dans le texte — un filtrage géographique strict au moment de
 la collecte aurait rejeté la quasi-totalité de leurs items, alors que ce contenu (programmes,
@@ -122,9 +137,9 @@ Priorité = Probabilité × Impact ; classement décroissant, les risques Élev�
 |---|---|---|---|---|
 | Hallucination du LLM (affirmation sans source réelle) | Moyenne | Élevé | **Haute** | Traçabilité obligatoire : chaque affirmation du résumé doit pointer vers l'extrait source ; rejet automatique d'un résumé sans citation |
 | Usage détourné (le système perçu comme validant une décision export/réglementaire) | Moyenne | Élevé | **Haute** | Positionnement explicite du livrable comme aide à la veille, non comme outil de décision ou de conformité opposable — risque juridique et réputationnel pour l'organisation utilisatrice en cas de mésusage |
-| Biais de sources (sur-représentation d'une zone ou d'un point de vue) | Élevée | Moyen | Moyenne | Suivi explicite de la couverture par source/zone, revue périodique de la liste de sources |
-| Dérive de coût (appels LLM incontrôlés) | Faible* | Moyen | Moyenne | Plafond de budget/appels LLM par jour (garde-fou dès V1) — *probabilité élevée si le garde-fou n'est pas actif, d'où son caractère non négociable |
-| Boucle d'agent incontrôlée | Faible* | Moyen | Moyenne | Limite de steps par run d'agent — *idem, dépend du garde-fou actif |
+| Biais de sources (sur-représentation d'une zone ou d'un point de vue) | Élevée | Moyen | Moyenne | Sélection des sources par pays sur critère explicite (§4), marquage `state_affiliated` des médias d'État, suivi de la couverture par pays, revue périodique de la liste |
+| Dérive de coût (appels LLM incontrôlés) | Faible* | Moyen | Moyenne | Plafond de budget/appels LLM par jour (garde-fou dès V1, couvrant aussi les appels du vérificateur) + fenêtre de fraîcheur à la collecte, qui empêche un flux à historique profond de soumettre tout son arriéré en un seul run — *probabilité élevée si les garde-fous ne sont pas actifs, d'où leur caractère non négociable |
+| Boucle d'agent incontrôlée | Faible* | Moyen | Moyenne | Limite de steps par run d'agent (`recursion_limit` du graphe) **et** double plafond sur l'escalade du vérificateur : items escaladés par run, itérations d'outil par item — le premier borne le graphe, le second borne la boucle interne au nœud, qui n'est pas couverte par le `recursion_limit` — *idem, dépend des garde-fous actifs |
 | Dépendance à un unique fournisseur LLM | Faible | Moyen | Basse | Architecture découplée (LangChain) permettant un changement de modèle sans réécriture complète |
 
 ## 9. Gouvernance & adoption
@@ -139,12 +154,16 @@ Priorité = Probabilité × Impact ; classement décroissant, les risques Élev�
 
 - **V1** — collecte + classification + résumé texte, sources fixes. Critère d'acceptation : couverture ≥ 90 %, digest quotidien généré sans intervention manuelle, chaque élément du digest tracé à sa source.
 - **V2** — agent vérificateur (recoupement, score de confiance) + carte sectorisée interactive. Critère d'acceptation : score de confiance disponible sur 100 % des événements, taux de recoupement mesuré et documenté.
+  - *Première tranche livrée* : le nœud vérificateur produit `confidence_score` et `corroborated` par une boucle d'outil bornée (recherche dans l'historique des items déjà analysés, fenêtre 30 jours), sur les catégories `export_control` et `contrat_armement` uniquement. Les autres items sortent sans score plutôt qu'avec une valeur par défaut — un score fabriqué par heuristique serait plus trompeur qu'utile pour la priorisation humaine (cf. §9, risque d'un score de confiance mal compris). Le critère d'acceptation "100 % des événements" n'est donc **pas** atteint à ce stade et reste l'objectif de la tranche suivante.
+  - *Reste à faire sur V2* : extension aux trois autres catégories, enrichissement du contexte par récupération du texte intégral des articles (les extraits RSS sont souvent tronqués), carte sectorisée interactive à partir du champ `location` déjà extrait et vérifié.
 - **V3** — mémoire interrogeable sur l'historique (requêtes en langage naturel). Critère d'acceptation : requête historique répondue avec citation des sources d'origine.
 
 ## 11. Limites connues
 
 - Le système ne couvre que les sources ouvertes en français/anglais : un angle mort existe sur les sources locales en langue arabe ou russe tant que V1/V2 ne les intègrent pas.
 - La classification par LLM reste probabiliste : le score de confiance affiché est une aide à la priorisation humaine, pas une garantie de véracité.
-- Le périmètre est thématique et mondial (cf. révision §4) : sans filtrage géographique à la collecte, la couverture réelle dépend entièrement du mix de sources — un déséquilibre vers l'actualité américaine (2 sources sur 5) est possible tant que le mix n'est pas élargi vers des sources européennes/MENA supplémentaires.
-- Certaines sources officielles pressenties (sites ministériels français, Mer et Marine) ne publient pas de flux RSS exploitable en l'état ; la liste de sources V1 (`backend/config.py`) a été validée empiriquement plutôt que supposée, et se limite pour l'instant à 5 sources confirmées — un angle mort à documenter et réduire en V2.
+- Le périmètre est thématique et mondial (cf. révision §4) : sans filtrage géographique à la collecte, la couverture réelle dépend entièrement du mix de sources. La sélection par pays (§4) corrige le déséquilibre initial vers l'actualité américaine, mais ne l'annule pas : le volume collecté reste proportionnel à ce que chaque flux publie, pas au poids du pays dans les exportations mondiales.
+- Certaines sources officielles pressenties (sites ministériels français, Mer et Marine) ne publient pas de flux RSS exploitable en l'état. La liste de sources (`backend/config.py`) est validée empiriquement flux par flux, mais la couverture institutionnelle reste inégale : plusieurs pays du périmètre n'ont pas d'agence de contrôle export ou de direction des achats exposant un flux exploitable (Corée du Sud, Israël notamment), ce qui oblige à s'appuyer sur la presse pour des faits qui gagneraient à venir d'une source primaire.
+- Pour quatre pays du périmètre (Chine, Russie, Iran, Corée du Nord), aucune source gratuite indépendante n'a été trouvée : la couverture repose sur des médias d'État, marqués comme tels (§4) mais non recoupés par une source indépendante. Les affirmations issues de ces flux doivent être lues comme des revendications, pas comme des faits établis.
+- Le vérificateur ne couvre que deux des cinq catégories, et son recoupement s'appuie sur un historique glissant de 30 jours qui démarre vide : le taux de corroboration observé les premiers jours d'exploitation sous-estime structurellement le taux réel, le temps que l'historique se constitue.
 - Le champ `location` dépend de la mention explicite d'un lieu dans le texte source (souvent tronqué dans un extrait RSS) : un item réellement localisé peut ressortir avec `location` vide s'il n'est pas nommé explicitement, sous-estimant la couverture géographique réelle affichable sur la future carte (V2).
