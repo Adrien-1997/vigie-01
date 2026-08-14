@@ -20,9 +20,9 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
         </thead>
         <tbody>
           {items.map((item) => {
-            // La carte agrège les rattachements déduits ; le tableau est le seul endroit où
+            // La carte agrège les rattachements non cités ; le tableau est le seul endroit où
             // l'analyste peut voir lequel de ses items a été placé sans que la source le dise.
-            const match = resolveLocation(item.location, item.location_country);
+            const match = resolveLocation(item);
             return (
               <tr key={item.link}>
                 <td>
@@ -42,11 +42,12 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
                 </td>
                 <td className="wrap">
                   {item.location || "—"}
-                  {match?.inferred && (
+                  {match && match.provenance !== "cited" && (
                     <>
                       <br />
                       <span style={{ color: "var(--ink-muted)" }}>
-                        → {countryLabel(match.feature)} (déduit)
+                        → {countryLabel(match.feature)}{" "}
+                        ({match.provenance === "deduced" ? "déduit" : "présumé domestique"})
                       </span>
                     </>
                   )}

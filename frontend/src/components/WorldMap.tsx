@@ -21,8 +21,9 @@ const PATHS: { feature: CountryFeature; d: string }[] = DRAWN.map((feature) => (
 
 interface Bucket {
   total: number;
-  /** Part du total rattachée au pays par déduction et non par citation (cf. lib/geo.ts). */
-  inferred: number;
+  /** Part du total rattachée autrement que par citation de la source (cf. Provenance, lib/geo.ts). */
+  deduced: number;
+  presumed: number;
   byCategory: Map<Category, number>;
   name: string;
 }
@@ -36,38 +37,41 @@ interface Props {
 export function WorldMap({ items, selected, onSelect }: Props) {
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
 
-  const { byCountry, unlocated, unresolved, inferred, max } = useMemo(() => {
+  const { byCountry, unlocated, unresolved, deduced, presumed, max } = useMemo(() => {
     const byCountry = new Map<string, Bucket>();
     let unlocated = 0;
     let unresolved = 0;
-    let inferred = 0;
+    let deduced = 0;
+    let presumed = 0;
 
     for (const item of items) {
-      if (!item.location.trim()) {
-        unlocated += 1;
-        continue;
-      }
-      const match = resolveLocation(item.location, item.location_country);
+      const match = resolveLocation(item);
       if (!match) {
-        unresolved += 1;
+        // Deux échecs distincts, et les confondre masquerait lequel est en cause : rien à placer
+        // faute de lieu extrait, ou un lieu bien extrait mais qui n'est dans aucun pays.
+        if (item.location.trim()) unresolved += 1;
+        else unlocated += 1;
         continue;
       }
       const key = countryKey(match.feature);
       let bucket = byCountry.get(key);
       if (!bucket) {
-        bucket = { total: 0, inferred: 0, byCategory: new Map(), name: countryLabel(match.feature) };
+        bucket = { total: 0, deduced: 0, presumed: 0, byCategory: new Map(), name: countryLabel(match.feature) };
         byCountry.set(key, bucket);
       }
       bucket.total += 1;
-      if (match.inferred) {
-        bucket.inferred += 1;
-        inferred += 1;
+      if (match.provenance === "deduced") {
+        bucket.deduced += 1;
+        deduced += 1;
+      } else if (match.provenance === "presumed") {
+        bucket.presumed += 1;
+        presumed += 1;
       }
       bucket.byCategory.set(item.category, (bucket.byCategory.get(item.category) ?? 0) + 1);
     }
 
     const max = Math.max(0, ...[...byCountry.values()].map((b) => b.total));
-    return { byCountry, unlocated, unresolved, inferred, max };
+    return { byCountry, unlocated, unresolved, deduced, presumed, max };
   }, [items]);
 
   // Autant de paliers que de valeurs distinctes possibles, plafonné à la rampe : sur un digest
@@ -124,7 +128,8 @@ export function WorldMap({ items, selected, onSelect }: Props) {
                 {bucket && (
                   <title>
                     {bucket.name} — {bucket.total} item{bucket.total > 1 ? "s" : ""}
-                    {bucket.inferred > 0 && `, dont ${bucket.inferred} rattaché${bucket.inferred > 1 ? "s" : ""} par déduction`}
+                    {bucket.deduced > 0 && `, dont ${bucket.deduced} déduit${bucket.deduced > 1 ? "s" : ""}`}
+                    {bucket.presumed > 0 && `, dont ${bucket.presumed} présumé${bucket.presumed > 1 ? "s" : ""}`}
                   </title>
                 )}
               </path>
@@ -141,9 +146,14 @@ export function WorldMap({ items, selected, onSelect }: Props) {
             }}
           >
             <strong>{hovered.name}</strong>
-            {hovered.inferred > 0 && (
+            {hovered.deduced > 0 && (
               <span className="tooltip-note">
-                {hovered.inferred}/{hovered.total} rattaché{hovered.inferred > 1 ? "s" : ""} par déduction
+                {hovered.deduced}/{hovered.total} rattaché{hovered.deduced > 1 ? "s" : ""} par déduction du lieu
+              </span>
+            )}
+            {hovered.presumed > 0 && (
+              <span className="tooltip-note">
+                {hovered.presumed}/{hovered.total} présumé{hovered.presumed > 1 ? "s" : ""} domestique, sans lieu nommé
               </span>
             )}
             <ul>
@@ -178,19 +188,27 @@ export function WorldMap({ items, selected, onSelect }: Props) {
         <span>
           {unresolved} lieu{unresolved > 1 ? "x" : ""} non rattaché{unresolved > 1 ? "s" : ""} à un pays
         </span>
-        {inferred > 0 && (
+        {deduced > 0 && (
           <span>
-            {inferred} rattaché{inferred > 1 ? "s" : ""} par déduction
+            {deduced} déduit{deduced > 1 ? "s" : ""} d'une localité
+          </span>
+        )}
+        {presumed > 0 && (
+          <span>
+            {presumed} présumé{presumed > 1 ? "s" : ""} domestique
           </span>
         )}
       </div>
 
       <p className="note" style={{ marginTop: 8 }}>
         Carte construite sur le champ <code>location</code> vérifié par item, pas sur le pays de la source.
-        Un lieu absent du texte source ressort vide : la couverture réelle est sous-estimée
-        (docs/cadrage.md §11). Une localité (« Darwin ») est rattachée à son pays par déduction du
-        modèle, pas par citation de la source : ces items sont comptés à part ci-dessus et signalés
-        au survol du pays.
+        Trois niveaux de rattachement, comptés séparément ci-dessus et détaillés au survol du pays :
+        le pays est <strong>cité</strong> par la source ; il est <strong>déduit</strong> par le modèle
+        d'une localité nommée (« Darwin » → Australie) ; ou, à défaut de tout lieu nommé, l'événement
+        est <strong>présumé domestique</strong> au pays du média, sur jugement du contenu de l'article
+        — jamais sur la seule origine du média, qui placerait en Russie une dépêche TASS sur le Yémen.
+        Ce qui reste non plaçable est affiché plutôt qu'écarté : la couverture réelle est sous-estimée
+        (docs/cadrage.md §11).
       </p>
     </div>
   );

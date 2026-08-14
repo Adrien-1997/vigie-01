@@ -21,9 +21,12 @@ export interface AnalyzedItem {
   summary: string;
   citation: string;
   location: string;
-  /** Pays déduit de `location` par le LLM, nom anglais — seul champ non vérifiable verbatim.
+  /** Pays déduit de `location` par le LLM, nom anglais — non vérifiable verbatim.
    *  Optionnel : les digests produits avant son introduction ne le portent pas. */
   location_country?: string;
+  /** Aucun lieu nommé, mais le modèle juge l'événement situé dans le pays de la source
+   *  (`country`). Rattachement présumé, plus faible que `location_country`. */
+  domestic_to_source?: boolean;
   confidence_score: number | null;
   corroborated: boolean | null;
 }

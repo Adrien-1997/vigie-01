@@ -328,13 +328,48 @@ function matchLoose(name: string): CountryFeature | null {
   return found;
 }
 
-/** Un pays nommé dans la source (`inferred: false`) et un pays déduit d'une localité par le LLM
- *  (`inferred: true`) placent tous deux un item sur la carte, mais n'engagent pas la même chose :
- *  le second ne repose sur aucun extrait vérifiable. Sans ce drapeau, la distinction serait perdue
- *  exactement au moment où elle compte — quand on lit la couverture de la carte. */
+/** Sur quoi repose le rattachement d'un item à un pays. Trois niveaux, du plus fort au plus faible :
+ *
+ *  - `cited` : la source nomme le pays. Vérifié verbatim.
+ *  - `deduced` : la source nomme un lieu, le modèle en déduit le pays (« Darwin » → Australie).
+ *    Pas d'ancrage verbatim sur le pays, mais un lieu réel et vérifié en dessous.
+ *  - `presumed` : la source ne nomme aucun lieu ; le modèle juge sur le contenu que l'événement
+ *    se situe dans le pays du média. Rien n'est nommé, seul le sujet est interprété.
+ *
+ *  Les trois placent l'item sur la carte, mais n'engagent pas la même chose. Les confondre dans un
+ *  total unique ferait lire une couverture présumée comme une couverture citée — la distinction
+ *  disparaîtrait exactement au moment où elle compte. */
+export type Provenance = "cited" | "deduced" | "presumed";
+
 export interface LocationMatch {
   feature: CountryFeature;
-  inferred: boolean;
+  provenance: Provenance;
+}
+
+/** Pays des sources (codes de backend/config.py) → entité du topojson, pour le rattachement
+ *  présumé. "INT" est absent volontairement : une source multi-pays ou institutionnelle UE n'a
+ *  pas de pays d'origine à présumer, et le backend refuse déjà le repli pour ces sources. */
+const SOURCE_COUNTRY_NE: Record<string, string> = {
+  US: "United States of America",
+  FR: "France",
+  RU: "Russia",
+  CN: "China",
+  DE: "Germany",
+  IT: "Italy",
+  GB: "United Kingdom",
+  IL: "Israel",
+  ES: "Spain",
+  KR: "South Korea",
+  IR: "Iran",
+  KP: "North Korea",
+};
+
+/** Ce dont la résolution a besoin : une forme, pas le type complet, pour rester testable. */
+export interface Locatable {
+  location: string;
+  location_country?: string;
+  domestic_to_source?: boolean;
+  country: string;
 }
 
 /** Résout un item vers un pays du topojson, du plus sûr au moins sûr.
@@ -347,28 +382,36 @@ export interface LocationMatch {
  *     seul qui n'a aucun ancrage dans le texte, donc celui qu'on valide le plus strictement.
  *     Le vocabulaire étant fermé, un pays inventé retombe en « non rattaché » plutôt que de
  *     peindre le mauvais pays.
+ *  4. À défaut de tout lieu nommé, le pays de la source — mais seulement si le modèle a jugé
+ *     l'événement domestique sur le contenu de l'article. Le pays du média ne suffit jamais seul :
+ *     appliqué sans ce jugement, il ferait peindre en Russie une dépêche TASS sur le Yémen.
  *
  *  L'ordre compte : le déduit passe après l'approché pour ne pas effacer une provenance réelle,
  *  mais avant l'échec, pour rattraper les localités (« Darwin ») et les cas où l'approché refuse
  *  de trancher (« Korea »).
  *
- *  Retourne null si le lieu est vide (item non localisé) ou non rattachable (haute mer, région
- *  transnationale, organisation) — ces cas sont comptés et affichés par la carte plutôt que
- *  silencieusement écartés (cf. docs/cadrage.md §11). */
-export function resolveLocation(location: string, locationCountry?: string): LocationMatch | null {
-  // Sans lieu vérifié, le pays déduit n'a plus rien à quoi se rattacher. Le backend le vide déjà
-  // dans ce cas, mais l'invariant est réaffirmé ici : trois appelants sur quatre ne testent pas
-  // `location` de leur côté, et ne doivent pas avoir à connaître cette promesse pour être justes.
-  if (!location.trim()) return null;
+ *  Retourne null si rien de tout cela ne s'applique — item sans lieu et non domestique, ou lieu non
+ *  rattachable (haute mer, région transnationale, organisation). Ces cas sont comptés et affichés
+ *  par la carte plutôt que silencieusement écartés (cf. docs/cadrage.md §11). */
+export function resolveLocation(item: Locatable): LocationMatch | null {
+  if (!item.location.trim()) {
+    // Sans lieu nommé, `location_country` n'a plus rien à quoi se rattacher — le backend le vide
+    // déjà, l'invariant est réaffirmé ici pour que les appelants n'aient pas à le connaître.
+    // Seul le rattachement présumé survit à ce cas, puisqu'il ne dépend d'aucun lieu.
+    if (!item.domestic_to_source) return null;
+    const origin = SOURCE_COUNTRY_NE[item.country];
+    const f = origin ? BY_NAME.get(normalize(origin)) : null;
+    return f ? { feature: f, provenance: "presumed" } : null;
+  }
 
-  const exact = matchExact(location);
-  if (exact) return { feature: exact, inferred: false };
+  const exact = matchExact(item.location);
+  if (exact) return { feature: exact, provenance: "cited" };
 
-  const loose = matchLoose(location);
-  if (loose) return { feature: loose, inferred: false };
+  const loose = matchLoose(item.location);
+  if (loose) return { feature: loose, provenance: "cited" };
 
-  const deduced = locationCountry ? matchExact(locationCountry) : null;
-  return deduced ? { feature: deduced, inferred: true } : null;
+  const deduced = item.location_country ? matchExact(item.location_country) : null;
+  return deduced ? { feature: deduced, provenance: "deduced" } : null;
 }
 
 /** Pays des sources (backend/config.py). "INT" = source multi-pays / institutionnelle UE. */

@@ -59,7 +59,14 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
      transnationale (« Sahel », « Balkans »), organisation ou unité militaire ;
    - le lieu est dans plusieurs pays sans qu'un seul domine ;
    - la souveraineté du lieu est contestée ou ferait l'objet d'un désaccord entre États.
-   Un champ vide est toujours préférable à un rattachement arbitré."""
+   Un champ vide est toujours préférable à un rattachement arbitré.
+7. Fournis domestic : l'événement rapporté se situe-t-il dans le pays de la source, indiqué en tête
+   du message ? Réponds d'après le contenu de l'article, jamais d'après la seule origine du média :
+   couvrir l'étranger est le cas le plus fréquent, et un média qui rapporte un événement survenu
+   dans un pays tiers doit donner false même si l'article est écrit depuis son propre pays.
+   true correspond à l'actualité intérieure : institution, administration, industrie ou forces
+   armées du pays de la source agissant sur son propre territoire. Dans le doute, false.
+   Ce champ ne dispense pas de renseigner location et location_country : réponds aux trois."""
 
 
 class _Analysis(BaseModel):
@@ -73,6 +80,10 @@ class _Analysis(BaseModel):
     location_country: str = Field(
         description="Pays souverain du lieu de location, nom anglais usuel ; vide si le lieu n'est dans aucun pays, "
         "est transnational ou de souveraineté contestée"
+    )
+    domestic: bool = Field(
+        description="L'événement rapporté se situe-t-il dans le pays de la source ? false dès que l'article "
+        "couvre l'étranger, et dans le doute"
     )
 
 
@@ -91,6 +102,24 @@ def _extract_verified(extract: str, source_text: str) -> bool:
 
 _llm = None
 
+# Noms anglais des codes pays de backend/config.py, pour la question `domestic` : « RU » se lit
+# mal, « Russia » non. "INT" (source multi-pays / institutionnelle UE) n'a pas de pays d'origine
+# et est traité à part — la question n'a pas de sens pour ce cas.
+_SOURCE_COUNTRY_NAME: dict[str, str] = {
+    "US": "the United States",
+    "FR": "France",
+    "RU": "Russia",
+    "CN": "China",
+    "DE": "Germany",
+    "IT": "Italy",
+    "GB": "the United Kingdom",
+    "IL": "Israel",
+    "ES": "Spain",
+    "KR": "South Korea",
+    "IR": "Iran",
+    "KP": "North Korea",
+}
+
 
 def classify_item(item: RawItem) -> _Analysis:
     """Appelle le LLM pour un item, sans filtrage. Réutilisé par analyze() et par l'éval (backend/eval/)."""
@@ -99,11 +128,19 @@ def classify_item(item: RawItem) -> _Analysis:
         _llm = ChatAnthropic(model=MODEL, temperature=0).with_structured_output(_Analysis)
 
     clean_text = _clean_text(item["raw_text"])
+    # Le pays de la source n'est donné que pour la question 7. Il est placé en tête et nommé comme
+    # tel pour ne pas contaminer l'extraction de location, qui doit rester un verbatim du texte :
+    # une source russe couvrant l'Ukraine ne doit pas se mettre à produire « Russia ».
+    origin = _SOURCE_COUNTRY_NAME.get(item["country"], "an international or multi-country outlet")
     check_and_increment_llm_call()
     return _llm.invoke(
         [
             ("system", SYSTEM_PROMPT),
-            ("human", f"Titre : {item['title']}\n\nTexte : {clean_text}"),
+            (
+                "human",
+                f"Pays de la source (métadonnée, ne fait pas partie de l'article, à n'utiliser que "
+                f"pour la question 7) : {origin}\n\nTitre : {item['title']}\n\nTexte : {clean_text}",
+            ),
         ]
     )
 
@@ -139,6 +176,22 @@ def analyze(state: VeilleState) -> VeilleState:
         # carte, et le marque comme déduit (frontend/src/lib/geo.ts).
         location_country = result.location_country.strip() if location else ""
 
+        # Repli de dernier recours pour les items sans aucun lieu nommé : le modèle a jugé, sur le
+        # contenu de l'article, que l'événement se situe dans le pays de la source. Trois bornes.
+        #
+        # Il ne s'applique qu'à `location` vide : si un lieu a été extrait mais n'est rattachable à
+        # aucun pays (« Black Sea »), c'est une réponse, pas un manque — la remplacer par le pays du
+        # média serait une régression, pas un repli.
+        #
+        # Il est refusé aux sources "INT", qui n'ont pas de pays d'origine.
+        #
+        # Et il reste plus faible que `location_country`, qui déduit d'un lieu nommé : ici rien
+        # n'est nommé, seul le contenu est jugé. La restitution le distingue donc en « présumé »,
+        # et non en « déduit » (frontend/src/lib/geo.ts). Le pays de la source ne suffit jamais à
+        # lui seul : sans ce jugement, un média d'État couvrant l'étranger gonflerait l'empreinte
+        # de son propre pays, et le périmètre en sur-échantillonne délibérément (cf. §4).
+        domestic_to_source = bool(result.domestic) and not location and item["country"] != "INT"
+
         analyzed_items.append(
             AnalyzedItem(
                 source=item["source"],
@@ -154,6 +207,7 @@ def analyze(state: VeilleState) -> VeilleState:
                 citation=result.citation,
                 location=location,
                 location_country=location_country,
+                domestic_to_source=domestic_to_source,
                 confidence_score=None,
                 corroborated=None,
             )

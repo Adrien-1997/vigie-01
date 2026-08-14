@@ -43,6 +43,10 @@ class AnalyzedItem(TypedDict):
     # ville n'est pas dans le texte) : vide dès que location l'est, et validé contre le référentiel
     # de la carte à l'affichage, où il est signalé comme déduit et non comme cité.
     location_country: str
+    # Vrai uniquement si aucun lieu n'a été extrait ET que le modèle juge, sur le contenu, que
+    # l'événement se situe dans le pays de la source (champ `country` ci-dessus). Rattachement
+    # présumé, plus faible que location_country : distingué comme tel à l'affichage.
+    domestic_to_source: bool
     # Renseignés par le vérificateur en V2 (cf. docs/cadrage.md §10) ; absents en V1.
     confidence_score: float | None
     corroborated: bool | None

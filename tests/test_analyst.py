@@ -1,11 +1,11 @@
 from backend.agents import analyst
 
 
-def _raw_item(raw_text: str) -> dict:
+def _raw_item(raw_text: str, country: str = "US") -> dict:
     return {
         "source": "s",
         "lang": "en",
-        "country": "US",
+        "country": country,
         "state_affiliated": False,
         "title": "titre",
         "link": "l",
@@ -15,11 +15,21 @@ def _raw_item(raw_text: str) -> dict:
 
 
 class _FakeAnalysis:
-    def __init__(self, category, citation, location="", location_country="", title_fr="Titre", summary="Résumé"):
+    def __init__(
+        self,
+        category,
+        citation,
+        location="",
+        location_country="",
+        domestic=False,
+        title_fr="Titre",
+        summary="Résumé",
+    ):
         self.category = category
         self.citation = citation
         self.location = location
         self.location_country = location_country
+        self.domestic = domestic
         self.title_fr = title_fr
         self.summary = summary
 
@@ -112,3 +122,50 @@ def test_analyze_keeps_deduced_country_when_location_is_verified(monkeypatch):
 
     assert result["analyzed_items"][0]["location"] == "Darwin"
     assert result["analyzed_items"][0]["location_country"] == "Australia"
+
+
+def test_analyze_presumes_domestic_only_when_no_location_was_extracted(monkeypatch):
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis("contrat_armement", "source text about a contract", domestic=True),
+    )
+
+    result = analyst.analyze({"raw_items": [_raw_item("Actual source text about a contract.")], "analyzed_items": []})
+
+    assert result["analyzed_items"][0]["location"] == ""
+    assert result["analyzed_items"][0]["domestic_to_source"] is True
+
+
+def test_analyze_ignores_domestic_when_a_location_was_extracted(monkeypatch):
+    # Un lieu extrait est une réponse : le pays du média ne doit pas s'y substituer, même si
+    # l'événement est aussi domestique. Le repli est un dernier recours, pas un concurrent.
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis(
+            "contrat_armement", "source text about a contract", location="Darwin", domestic=True
+        ),
+    )
+
+    result = analyst.analyze(
+        {"raw_items": [_raw_item("Source text about a contract signed in Darwin.")], "analyzed_items": []}
+    )
+
+    assert result["analyzed_items"][0]["domestic_to_source"] is False
+
+
+def test_analyze_refuses_domestic_presumption_for_international_sources(monkeypatch):
+    # "INT" désigne une source multi-pays ou institutionnelle UE : elle n'a pas de pays
+    # d'origine, il n'y a donc rien à présumer.
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis("contrat_armement", "source text about a contract", domestic=True),
+    )
+
+    result = analyst.analyze(
+        {"raw_items": [_raw_item("Actual source text about a contract.", country="INT")], "analyzed_items": []}
+    )
+
+    assert result["analyzed_items"][0]["domestic_to_source"] is False

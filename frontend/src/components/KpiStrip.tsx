@@ -17,7 +17,7 @@ export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
   // countryKey et non `.id` : trois entités du topojson n'ont pas de code ISO (cf. lib/geo.ts),
   // et les compter par `.id` les faisait toutes tomber dans une clé indéfinie, écartée par le
   // filtre — un item au Kosovo était placé sur la carte mais absent de ce décompte.
-  const matches = items.map((i) => resolveLocation(i.location, i.location_country));
+  const matches = items.map((i) => resolveLocation(i));
   const placed = new Set(matches.filter((m) => m !== null).map((m) => countryKey(m.feature)));
   const placeable = matches.filter((m) => m !== null).length;
 
