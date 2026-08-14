@@ -698,6 +698,7 @@ button {
 }
 
 .conf-track {
+  display: block;
   width: 44px;
   height: 5px;
   border-radius: 3px;
@@ -706,6 +707,7 @@ button {
 }
 
 .conf-fill {
+  display: block;
   height: 100%;
   border-radius: 3px;
   background: var(--conf-color, var(--seq-400));
