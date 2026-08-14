@@ -18,6 +18,8 @@ class RawItem(TypedDict):
     source: str
     theme: str
     lang: str
+    country: str  # code pays de la source (cf. backend/config.py), pas de l'article
+    state_affiliated: bool  # média d'État ou lié à un service officiel (cf. backend/config.py)
     title: str
     link: str
     published: str  # ISO 8601 si fourni par le flux, chaîne vide sinon
@@ -27,6 +29,8 @@ class RawItem(TypedDict):
 class AnalyzedItem(TypedDict):
     source: str
     lang: str
+    country: str
+    state_affiliated: bool
     title: str  # titre original, dans la langue de la source
     title_fr: str  # titre traduit, pour un digest lisible en français quelle que soit la source
     link: str

@@ -5,6 +5,8 @@ def _raw_item(raw_text: str) -> dict:
     return {
         "source": "s",
         "lang": "en",
+        "country": "US",
+        "state_affiliated": False,
         "title": "titre",
         "link": "l",
         "published": "",

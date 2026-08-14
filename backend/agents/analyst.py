@@ -100,6 +100,8 @@ def analyze(state: VeilleState) -> VeilleState:
             AnalyzedItem(
                 source=item["source"],
                 lang=item["lang"],
+                country=item["country"],
+                state_affiliated=item["state_affiliated"],
                 title=item["title"],
                 title_fr=result.title_fr,
                 link=item["link"],
