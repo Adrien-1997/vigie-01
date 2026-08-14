@@ -2,53 +2,72 @@ import type { AnalyzedItem } from "../types";
 import { VERIFIER_CATEGORIES } from "../lib/taxonomy";
 import { resolveLocation } from "../lib/geo";
 
-const pct = (n: number, d: number) => (d === 0 ? "—" : `${Math.round((n / d) * 100)} %`);
+const pct = (n: number, d: number) => (d === 0 ? null : `${Math.round((n / d) * 100)} %`);
 
+/** Le digest est un artefact d'après-filtrage : backend/agents/analyst.py écarte les items
+ *  `hors_perimetre` et ceux dont la citation n'est pas vérifiable verbatim avant de construire
+ *  `analyzed_items`. Le front ne voit donc ni le volume collecté ni le volume écarté — aucune
+ *  tuile ne doit prétendre le contraire. */
 export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
-  const inScope = items.filter((i) => i.category !== "hors_perimetre");
-  const verifiable = items.filter((i) => VERIFIER_CATEGORIES.has(i.category));
+  const sources = new Set(items.map((i) => i.source));
+  const escalatable = items.filter((i) => VERIFIER_CATEGORIES.has(i.category));
   const scored = items.filter((i) => i.confidence_score !== null);
   const corroborated = items.filter((i) => i.corroborated === true);
   const stateAffiliated = items.filter((i) => i.state_affiliated);
-  const located = new Set(items.map((i) => resolveLocation(i.location)?.id).filter(Boolean));
+  const placed = new Set(
+    items.map((i) => resolveLocation(i.location)?.id).filter((id): id is string => Boolean(id)),
+  );
+  const placeable = items.filter((i) => resolveLocation(i.location) !== null).length;
 
   return (
     <div className="kpis">
       <div className="kpi">
-        <span className="kpi-value">{inScope.length}</span>
-        <span className="kpi-label">Items dans le périmètre</span>
+        <span className="kpi-value">{items.length}</span>
+        <span className="kpi-label">Événements retenus</span>
         <span className="kpi-note">
-          {items.length - inScope.length} classés hors périmètre sur {items.length} collectés
+          {sources.size} source{sources.size > 1 ? "s" : ""} représentée{sources.size > 1 ? "s" : ""} · seuls les
+          items à citation vérifiée entrent au digest
         </span>
       </div>
 
       <div className="kpi">
         <span className="kpi-value">
-          {scored.length}
-          <small>/ {verifiable.length}</small>
+          {escalatable.length === 0 ? "—" : scored.length}
+          {escalatable.length > 0 && <small>/ {escalatable.length}</small>}
         </span>
         <span className="kpi-label">Vérifiés</span>
-        <span className="kpi-note">{pct(scored.length, verifiable.length)} des catégories escaladables</span>
+        <span className="kpi-note">
+          {escalatable.length === 0
+            ? "aucun item de catégorie escaladable dans ce digest"
+            : `${pct(scored.length, escalatable.length)} des items escaladables`}
+        </span>
       </div>
 
       <div className="kpi">
-        <span className="kpi-value">{corroborated.length}</span>
+        <span className="kpi-value">{scored.length === 0 ? "—" : corroborated.length}</span>
         <span className="kpi-label">Recoupés par l'historique</span>
         <span className="kpi-note">
-          {pct(corroborated.length, scored.length)} des items vérifiés · indicateur suivi, pas maximisé
+          {scored.length === 0
+            ? "sans objet : aucun item vérifié"
+            : `${pct(corroborated.length, scored.length)} des items vérifiés · indicateur suivi, pas maximisé`}
         </span>
       </div>
 
       <div className="kpi">
         <span className="kpi-value">{stateAffiliated.length}</span>
         <span className="kpi-label">Issus d'un média d'État</span>
-        <span className="kpi-note">{pct(stateAffiliated.length, items.length)} du digest · à lire comme revendications</span>
+        <span className="kpi-note">
+          {pct(stateAffiliated.length, items.length) ?? "—"} du digest · à lire comme revendications
+        </span>
       </div>
 
       <div className="kpi">
-        <span className="kpi-value">{located.size}</span>
+        <span className="kpi-value">{placed.size}</span>
         <span className="kpi-label">Pays couverts</span>
-        <span className="kpi-note">lieux d'événement résolus depuis le texte source</span>
+        <span className="kpi-note">
+          {placeable} item{placeable > 1 ? "s" : ""} sur {items.length} rattaché
+          {placeable > 1 ? "s" : ""} à un pays — le reste n'a pas de lieu exploitable
+        </span>
       </div>
     </div>
   );
