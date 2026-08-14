@@ -1,0 +1,968 @@
+/* Jetons issus de la palette de référence dataviz (validée : bande de clarté, plancher de
+   chroma, séparation CVD sur paires adjacentes, plancher vision normale — clair et sombre).
+   Le mode sombre n'est pas une inversion : ce sont les mêmes teintes redéclinées pour la
+   surface sombre. */
+:root {
+  color-scheme: light;
+
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-raised: #ffffff;
+
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-muted: #898781;
+
+  --hairline: rgba(11, 11, 11, 0.1);
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #1baf7a;
+  --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-none: #898781;
+
+  /* Séquentiel bleu 100→700 : magnitude (nombre d'items par pays sur la carte). */
+  --seq-100: #cde2fb;
+  --seq-250: #86b6ef;
+  --seq-400: #3987e5;
+  --seq-550: #1c5cab;
+  --seq-700: #0d366b;
+
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+  --success-text: #006300;
+
+  --accent: #2a78d6;
+  --accent-ink: #ffffff;
+  --wash: rgba(42, 120, 214, 0.08);
+
+  --map-land: #ececE6;
+  --map-stroke: #fcfcfb;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 2px rgba(11, 11, 11, 0.06), 0 4px 16px rgba(11, 11, 11, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-raised: #212120;
+
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+
+    --hairline: rgba(255, 255, 255, 0.1);
+    --grid: #2c2c2a;
+    --axis: #383835;
+
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --cat-5: #d55181;
+    --cat-none: #898781;
+
+    --seq-100: #184f95;
+    --seq-250: #256abf;
+    --seq-400: #3987e5;
+    --seq-550: #6da7ec;
+    --seq-700: #9ec5f4;
+
+    --success-text: #0ca30c;
+
+    --accent: #3987e5;
+    --wash: rgba(57, 135, 229, 0.14);
+
+    --map-land: #262625;
+    --map-stroke: #1a1a19;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-raised: #212120;
+
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-muted: #898781;
+
+  --hairline: rgba(255, 255, 255, 0.1);
+  --grid: #2c2c2a;
+  --axis: #383835;
+
+  --cat-1: #3987e5;
+  --cat-2: #d95926;
+  --cat-3: #199e70;
+  --cat-4: #c98500;
+  --cat-5: #d55181;
+  --cat-none: #898781;
+
+  --seq-100: #184f95;
+  --seq-250: #256abf;
+  --seq-400: #3987e5;
+  --seq-550: #6da7ec;
+  --seq-700: #9ec5f4;
+
+  --success-text: #0ca30c;
+
+  --accent: #3987e5;
+  --wash: rgba(57, 135, 229, 0.14);
+
+  --map-land: #262625;
+  --map-stroke: #1a1a19;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Ossature ───────────────────────────────────────────────────────────── */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.brand strong {
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.brand span {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.stamp {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-2);
+  border-color: var(--hairline);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--wash);
+  color: var(--ink);
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.icon-btn:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  padding: 20px 24px 56px;
+}
+
+@media (max-width: 900px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rail {
+    position: static;
+  }
+}
+
+.rail {
+  position: sticky;
+  top: 78px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Panneaux ───────────────────────────────────────────────────────────── */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.panel-pad {
+  padding: 16px;
+}
+
+.panel-title {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* ── Tuiles KPI ─────────────────────────────────────────────────────────── */
+
+/* Séparateurs portés par les cellules, pas par un fond de grille visible dans les gouttières :
+   avec auto-fit, la dernière rangée incomplète laisserait sinon une case fantôme colorée. */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.kpi {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 1px solid var(--hairline);
+}
+
+.kpi:first-child {
+  border-left: none;
+}
+
+.kpi-value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.kpi-value small {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  margin-left: 3px;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.kpi-note {
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+/* ── Filtres ────────────────────────────────────────────────────────────── */
+
+.search {
+  position: relative;
+}
+
+.search input {
+  width: 100%;
+  padding: 9px 12px 9px 32px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.search input::placeholder {
+  color: var(--ink-muted);
+}
+
+.search svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.filter-row:hover {
+  background: var(--wash);
+}
+
+.filter-row[aria-pressed="true"] {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.filter-row .count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-row:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.filter-row:disabled:hover {
+  background: transparent;
+}
+
+/* Le point coloré double toujours un libellé : la couleur n'est jamais le seul
+   porteur d'identité (règle d'accessibilité de la palette). */
+.dot {
+  display: inline-block;
+  vertical-align: baseline;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+  background: var(--dot, var(--cat-none));
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.check {
+  width: 14px;
+  flex: none;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+/* Barre de répartition empilée : 2px de surface entre segments (spacer de la
+   spécification de marques), coins arrondis aux extrémités de données. */
+.stack {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin-bottom: 10px;
+}
+
+.stack span {
+  border-radius: 2px;
+  min-width: 3px;
+}
+
+.stack span:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+
+.stack span:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+
+/* ── Barre d'outils ─────────────────────────────────────────────────────── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--wash);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.result-count {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.toolbar select {
+  padding: 6px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* ── Carte d'événement ──────────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 16px 18px 14px 21px;
+  overflow: hidden;
+}
+
+/* Filet de catégorie : redondant avec le badge, jamais seul porteur de sens. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--cat, var(--cat-none));
+}
+
+.card:hover {
+  border-color: var(--axis);
+}
+
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 7px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: var(--surface-raised);
+  white-space: nowrap;
+}
+
+.badge.warn {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--status-warning) 55%, transparent);
+  background: color-mix(in srgb, var(--status-warning) 12%, var(--surface));
+}
+
+.badge.good {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--status-good) 45%, transparent);
+  background: color-mix(in srgb, var(--status-good) 10%, var(--surface));
+}
+
+.badge.quiet {
+  color: var(--ink-muted);
+  border-style: dashed;
+}
+
+.badge svg {
+  flex: none;
+}
+
+.card h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.card h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.card h3 a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.card .summary {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+}
+
+.citation {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--axis);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--page);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-style: italic;
+}
+
+.citation-tag {
+  display: block;
+  margin-bottom: 3px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.card-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.card-foot .sep {
+  color: var(--axis);
+}
+
+.card-foot a {
+  margin-left: auto;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.card-foot a:hover {
+  text-decoration: underline;
+}
+
+/* ── Jauge de confiance ─────────────────────────────────────────────────── */
+
+.conf {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.conf-track {
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--grid);
+  overflow: hidden;
+}
+
+.conf-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--conf-color, var(--seq-400));
+}
+
+.conf-value {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Carte géographique ─────────────────────────────────────────────────── */
+
+.map-wrap {
+  position: relative;
+}
+
+.map-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.map-country {
+  fill: var(--map-land);
+  stroke: var(--map-stroke);
+  stroke-width: 0.4;
+  transition: fill 120ms ease;
+}
+
+.map-country.has-data {
+  cursor: pointer;
+}
+
+.map-country.dim {
+  opacity: 0.35;
+}
+
+.map-country.active {
+  stroke: var(--ink);
+  stroke-width: 1.1;
+}
+
+.map-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 150px;
+  padding: 9px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  font-size: 12px;
+}
+
+.map-tooltip strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.map-tooltip ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.map-tooltip li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+}
+
+.map-tooltip li .count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.map-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+.ramp {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ramp .swatches {
+  display: flex;
+  gap: 2px;
+}
+
+.ramp i {
+  width: 16px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.ramp i:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+
+.ramp i:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+
+/* ── États ──────────────────────────────────────────────────────────────── */
+
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+.state h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.state p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.state.error h2 {
+  color: var(--status-critical);
+}
+
+.note {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.skeleton {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--grid) 25%, var(--surface-raised) 50%, var(--grid) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.running-bar {
+  height: 2px;
+  background: var(--grid);
+  overflow: hidden;
+}
+
+.running-bar i {
+  display: block;
+  width: 35%;
+  height: 100%;
+  background: var(--accent);
+  animation: slide 1.3s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .running-bar i {
+    animation: none;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Vue tableau (canal d'accessibilité de la palette) ──────────────────── */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+th,
+td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--hairline);
+  white-space: nowrap;
+}
+
+th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.wrap {
+  white-space: normal;
+  min-width: 260px;
+}
+
+td a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+td a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

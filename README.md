@@ -34,9 +34,9 @@ Sources (RSS par pays, presse spécialisée, communiqués)
                                             score de confiance
                                                       │
                                                       ▼
-                                     API (FastAPI) ──► Front (flux ; carte
-                                     backend/api/       sectorisée en V2)
-                                     main.py             frontend/index.html
+                                     API (FastAPI) ──► Front (digest filtrable,
+                                     backend/api/       carte de couverture)
+                                     main.py             frontend/ (React + Vite)
 ```
 
 Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étape est un nœud, l'état partagé (`VeilleState`, `backend/state.py`) transporte les items d'un nœud à l'autre. Le dédoublonnage est placé *avant* l'appel LLM, pas après, pour ne pas consommer de budget sur des items déjà vus. LangSmith trace chaque nœud sans instrumentation manuelle.
@@ -51,9 +51,9 @@ Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étap
 | LLM             | Claude Haiku via `langchain-anthropic`   | construit (V1)          |
 | Backend         | Python 3.13, FastAPI                     | construit (V1)          |
 | Observabilité   | LangSmith (tracing natif par nœud)       | construit (V1)          |
-| Frontend        | HTML/JS statique, sans build             | construit (V1)          |
+| Frontend        | React + TypeScript + Vite                | construit (V1)          |
 | Vérificateur (recoupement, score de confiance) | LangGraph + tool-calling borné | 1ʳᵉ tranche construite (catégories sensibles) |
-| Carte sectorisée interactive | à partir du champ `location` déjà extrait | prévu (V2) |
+| Carte de couverture interactive | d3-geo + Natural Earth, sur le champ `location` | construite (V2, 1ʳᵉ tranche) |
 | Déploiement     | Cloud Run + Cloud Scheduler (cron)        | prévu                   |
 | Stockage        | GCS (raw/processed), Firestore (état)     | à valider (V1 : fichiers locaux gitignored) |
 
@@ -79,8 +79,10 @@ vigie/
 │   ├── graph.py                 # assemblage StateGraph LangGraph
 │   ├── state.py                 # schéma d'état partagé (VeilleState)
 │   └── requirements.txt
-├── frontend/
-│   └── index.html               # digest — HTML/JS statique, appelle l'API réelle
+├── frontend/                    # React + TypeScript + Vite, appelle l'API réelle
+│   └── src/
+│       ├── components/          # digest filtrable, carte de couverture, vue tableau
+│       └── lib/                 # taxonomie, filtres/tri, résolution des lieux
 ├── tests/                       # pytest — LLM et flux RSS mockés
 ├── docs/
 │   ├── cadrage.md               # cadrage produit (problématique, MECE, risques, KPIs)
@@ -110,10 +112,11 @@ Dans un second terminal, pour le frontend :
 
 ```bash
 cd frontend
-python -m http.server 5500
+npm install
+npm run dev
 ```
 
-Ouvrir `http://localhost:5500`, puis cliquer sur **Lancer la collecte** (déclenche `POST /run` — pipeline complet, ~5 min, consomme du budget LLM réel).
+Ouvrir `http://localhost:5173`, puis cliquer sur **Lancer la collecte** (déclenche `POST /run` — pipeline complet, ~5 min, consomme du budget LLM réel). L'URL de l'API est `http://localhost:8080` par défaut, surchargeable via `VITE_API_BASE`.
 
 ## Roadmap
 
@@ -121,7 +124,7 @@ Ouvrir `http://localhost:5500`, puis cliquer sur **Lancer la collecte** (déclen
 - [x] V1 — sources organisées par pays (top 10 exportateurs SIPRI + Iran/Corée du Nord), validées en direct
 - [ ] V1 — déploiement Cloud Run + Cloud Scheduler
 - [~] V2 — agent vérificateur : recoupement et score de confiance livrés sur les catégories sensibles ; extension aux autres catégories et `fetch_full_article` à venir
-- [ ] V2 — carte sectorisée interactive
+- [~] V2 — carte de couverture interactive livrée (filtrage par pays depuis le champ `location`) ; sectorisation par thème à venir
 - [ ] V3 — mémoire interrogeable sur l'historique (requêtes en langage naturel)
 
 ## Métriques de suivi
