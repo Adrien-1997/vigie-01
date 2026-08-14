@@ -105,3 +105,16 @@ COLLECTION_LOOKBACK_HOURS = 48
 # une config incomplète doit échouer au démarrage plutôt que tourner sans plafond.
 MAX_STEPS_PER_RUN = int(os.environ["MAX_STEPS_PER_RUN"])
 MAX_LLM_CALLS_PER_DAY = int(os.environ["MAX_LLM_CALLS_PER_DAY"])
+
+# Agent vérificateur (première tranche de V2, cf. docs/cadrage.md §10 et backend/agents/verifier.py).
+# Catégories les plus sensibles côté produit uniquement — pas les 100% du critère d'acceptation V2 ;
+# les items hors de ces catégories gardent confidence_score/corroborated à None plutôt qu'un score
+# fabriqué par heuristique sans base réelle.
+VERIFIER_CATEGORIES = {"export_control", "contrat_armement"}
+# Plafond par run, indépendant de MAX_LLM_CALLS_PER_DAY (qui reste le filet de sécurité global) :
+# évite qu'un seul run consomme l'essentiel du budget quotidien sur la vérification seule.
+MAX_VERIFIER_ESCALATIONS_PER_RUN = 15
+# Plafond d'itérations d'outil par item escaladé, vérifié en code (pas via MAX_STEPS_PER_RUN, qui
+# compte les nœuds du graphe LangGraph — une boucle interne à une fonction de nœud n'y est pas
+# soumise).
+MAX_VERIFIER_STEPS_PER_ITEM = 3

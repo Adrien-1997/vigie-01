@@ -3,9 +3,7 @@ from backend.config import Source
 
 
 def test_collect_parses_entries_from_configured_sources(monkeypatch):
-    monkeypatch.setattr(
-        collector, "SOURCES", [Source("Test Source", "http://example.com/rss", "fr", "contrats", "FR")]
-    )
+    monkeypatch.setattr(collector, "SOURCES", [Source("Test Source", "http://example.com/rss", "fr", "contrats", "FR")])
 
     class _FakeFeed:
         entries = [
@@ -32,9 +30,7 @@ def test_collect_parses_entries_from_configured_sources(monkeypatch):
 
 
 def test_collect_returns_no_items_when_feed_is_empty(monkeypatch):
-    monkeypatch.setattr(
-        collector, "SOURCES", [Source("Test Source", "http://example.com/rss", "fr", "contrats", "FR")]
-    )
+    monkeypatch.setattr(collector, "SOURCES", [Source("Test Source", "http://example.com/rss", "fr", "contrats", "FR")])
 
     class _EmptyFeed:
         entries = []

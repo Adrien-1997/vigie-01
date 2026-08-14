@@ -5,6 +5,11 @@ def test_build_graph_compiles_without_error():
     assert graph_module.build_graph() is not None
 
 
+def test_build_graph_includes_verify_node():
+    graph = graph_module.build_graph()
+    assert "verify" in graph.get_graph().nodes
+
+
 def test_run_pipeline_passes_max_steps_per_run_as_recursion_limit(monkeypatch):
     captured = {}
 
