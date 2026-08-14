@@ -45,8 +45,10 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
    exact, jamais traduit) qui justifie le résumé. Si aucun extrait ne justifie clairement le résumé,
    catégorise en hors_perimetre et laisse la citation vide.
 5. Fournis location : le pays, la mer ou la région principale concernée par l'article, extrait
-   VERBATIM du texte source. Laisse vide si aucun lieu n'est explicitement nommé dans le texte —
-   ne déduis jamais un lieu qui n'est pas écrit noir sur blanc."""
+   VERBATIM du titre ou du texte source. Privilégie le nom de pays quand il est écrit tel quel.
+   Laisse vide si aucun lieu n'est explicitement nommé — ne déduis jamais un lieu qui n'est pas
+   écrit noir sur blanc, et ne transforme pas un gentilé en nom de pays (« Ukrainian » n'autorise
+   pas « Ukraine » si le mot « Ukraine » n'apparaît nulle part)."""
 
 
 class _Analysis(BaseModel):
@@ -104,10 +106,19 @@ def analyze(state: VeilleState) -> VeilleState:
             # Garde-fou traçabilité (docs/cadrage.md §8) : pas de citation vérifiable, pas de résumé.
             continue
 
-        # location est une métadonnée pour la carte future (docs/cadrage.md §4) : ne filtre pas la
+        # location est une métadonnée pour la carte (docs/cadrage.md §4) : ne filtre pas la
         # collecte (pas de restriction géographique en V1), mais reste soumise au même garde-fou de
         # traçabilité que la citation — pas de lieu inventé, vide plutôt que non vérifiable.
-        location = result.location if _extract_verified(result.location, clean_text) else ""
+        #
+        # Le titre fait partie du texte vérifiable, contrairement à la citation qui doit justifier
+        # le résumé et vient donc du corps. Mesuré sur un run réel : la vérification contre le seul
+        # corps effaçait des extractions correctes, 10 des 11 lieux vides ayant leur pays nommé dans
+        # le titre et nulle part ailleurs (les extraits RSS sont souvent tronqués, cf. §11).
+        location = (
+            result.location
+            if _extract_verified(result.location, f"{item['title']} {clean_text}")
+            else ""
+        )
 
         analyzed_items.append(
             AnalyzedItem(
