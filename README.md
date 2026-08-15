@@ -85,12 +85,14 @@ vigie/
 │   │   ├── annotate.py        # annotation manuelle interactive
 │   │   └── score.py           # précision mesurée vs cible (cadrage §7)
 │   ├── memory/
-│   │   └── store.py           # dédoublonnage court terme + historique de recoupement
+│   │   ├── store.py           # dédoublonnage + historique analysé (recoupement et digest)
+│   │   └── persistence.py     # fichiers JSON locaux (dev) ou Firestore (prod), même interface
 │   ├── config.py               # sources RSS par pays, garde-fous obligatoires
 │   ├── guardrails.py           # plafond d'appels LLM quotidien
 │   ├── graph.py                 # assemblage StateGraph LangGraph
 │   ├── state.py                 # schéma d'état partagé (VeilleState)
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── requirements-gcp.txt     # dépendance Firestore, déploiement uniquement
 ├── frontend/                    # React + TypeScript + Vite, appelle l'API réelle
 │   └── src/
 │       ├── components/          # digest filtrable, carte de couverture, vue tableau
