@@ -4,7 +4,7 @@ Agent IA autonome qui collecte, classe et synthétise quotidiennement des source
 
 **Statut** : pipeline V1 fonctionnel de bout en bout (collecte → dédoublonnage → classification → vérification → API → frontend), première tranche du vérificateur V2 livrée, déploiement cloud à venir. Détail dans [Roadmap](#roadmap).
 
-![Digest VIGIE : bandeau d'indicateurs, filtres par catégorie et par état de vérification, fiches d'événement portant le score de confiance et la citation vérifiée](docs/screenshot.png)
+![Digest VIGIE : bandeau d'indicateurs, filtres par catégorie et par état de vérification, fiches d'événement portant la citation vérifiée, la provenance « média d'État » et l'état de vérification explicite](docs/screenshot.png)
 
 Le digest expose les signaux qui engagent la confiance plutôt que la seule liste d'articles : score de confiance du vérificateur, recoupement, provenance « média d'État », citation vérifiée verbatim. Un item hors du périmètre du vérificateur sort sans score plutôt qu'avec un zéro trompeur.
 
