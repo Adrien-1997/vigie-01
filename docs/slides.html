@@ -486,6 +486,7 @@
         <div class="pipe-node"><span class="k">Vérification</span><p>recoupement + score de confiance, boucle d'outil bornée</p></div>
       </div>
       <p class="muted-note" style="margin-top:18px">État partagé (<code>VeilleState</code>) entre les nœuds, chaque nœud tracé nativement — sans instrumentation manuelle. Les trois premiers nœuds sont un workflow déterministe ; seul le vérificateur laisse le modèle décider de ses propres appels d'outil, sous double plafond.</p>
+      <p class="muted-note" style="margin-top:6px">Ce qui survit aux runs — budget LLM, liens vus, historique analysé — passe par une couche de persistance unique, fichiers locaux en développement et Firestore en production. Le digest servi est une fenêtre glissante sur cet historique, pas la photographie du dernier run : le dédoublonnage vidant les collectes suivantes, servir le run brut effacerait l'affichage à chaque passage.</p>
     </div>
   </section>
 
@@ -597,8 +598,9 @@
         <li><strong class="mark">Le volume réel a démenti l'estimation.</strong> La reprise des sources a fait apparaître des flux exposant des mois d'historique. Sans fenêtre de fraîcheur, le premier run aurait consommé le budget d'une journée entière sur l'arriéré avant de s'interrompre.</li>
         <li><strong class="mark">Symptôme à l'affichage, cause en amont.</strong> Deux pays seulement ressortaient sur la carte. Plutôt que d'ajouter des règles de rattrapage à la restitution : mesurer d'abord. 10 des 11 lieux manquants avaient leur pays nommé dans le titre — or la vérification verbatim ne portait que sur le corps de l'article, et effaçait des extractions correctes.</li>
         <li><strong class="mark">Corrigé sans affaiblir le garde-fou.</strong> Le titre est du texte publié par la source : l'extrait doit toujours y correspondre mot pour mot. Couverture passée de 6 à 13 lieux sur 16 items.</li>
+        <li><strong class="mark">Un plantage a révélé la vraie perte.</strong> Une réponse de modèle hors énumération a interrompu un run. Au relancement : zéro item neuf — le dédoublonnage marquait les liens comme vus <em>avant</em> l'analyse, donc les items du run perdu étaient réputés traités sans exister nulle part, et exclus de toutes les collectes suivantes. Le marquage appartient désormais au nœud qui a réellement payé l'appel.</li>
       </ul>
-      <p class="muted-note" style="margin-top:6px">Remonter du symptôme à la cause plutôt que corriger là où le problème se voit — et documenter ce qui reste non vérifié plutôt que de l'omettre.</p>
+      <p class="muted-note" style="margin-top:6px">Remonter du symptôme à la cause plutôt que corriger là où le problème se voit — et documenter ce qui reste non vérifié plutôt que de l'omettre. Aucun de ces défauts n'était visible en relecture de code.</p>
     </div>
   </section>
 
@@ -635,7 +637,7 @@
         <span class="stage">V3</span>
         <div><span class="status-dot later"></span>Mémoire interrogeable sur l'historique (requêtes en langage naturel)</div>
       </div>
-      <p class="muted-note" style="margin-top:14px">Recommandation : achever la couverture du vérificateur avant le déploiement — le score n'est produit que sur deux des cinq catégories.</p>
+      <p class="muted-note" style="margin-top:14px">Recommandation : achever la couverture du vérificateur avant le déploiement — le score n'est produit que sur deux des cinq catégories. Le prérequis technique du déploiement est levé (état porté par une couche de persistance, Firestore en production), mais ce backend-là n'a pas encore tourné contre une base réelle.</p>
     </div>
   </section>
 
