@@ -1,6 +1,6 @@
 import type { AnalyzedItem } from "../types";
 import { VERIFIER_CATEGORIES } from "../lib/taxonomy";
-import { countryKey, resolveLocation } from "../lib/geo";
+import { computeCoverage, unplacedReasons } from "../lib/coverage";
 
 const pct = (n: number, d: number) => (d === 0 ? null : `${Math.round((n / d) * 100)} %`);
 
@@ -14,12 +14,10 @@ export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
   const scored = items.filter((i) => i.confidence_score !== null);
   const corroborated = items.filter((i) => i.corroborated === true);
   const stateAffiliated = items.filter((i) => i.state_affiliated);
-  // countryKey et non `.id` : trois entités du topojson n'ont pas de code ISO (cf. lib/geo.ts),
-  // et les compter par `.id` les faisait toutes tomber dans une clé indéfinie, écartée par le
-  // filtre — un item au Kosovo était placé sur la carte mais absent de ce décompte.
-  const matches = items.map((i) => resolveLocation(i));
-  const placed = new Set(matches.filter((m) => m !== null).map((m) => countryKey(m.feature)));
-  const placeable = matches.filter((m) => m !== null).length;
+  // Même calcul que la carte, à dessein : les deux panneaux décrivaient la couverture chacun de
+  // son côté et se contredisaient à l'écran (cf. lib/coverage.ts).
+  const coverage = computeCoverage(items);
+  const unplaced = unplacedReasons(coverage);
 
   return (
     <div className="kpis">
@@ -64,11 +62,12 @@ export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
       </div>
 
       <div className="kpi">
-        <span className="kpi-value">{placed.size}</span>
+        <span className="kpi-value">{coverage.byCountry.size}</span>
         <span className="kpi-label">Pays couverts</span>
         <span className="kpi-note">
-          {placeable} item{placeable > 1 ? "s" : ""} sur {items.length} rattaché
-          {placeable > 1 ? "s" : ""} à un pays — le reste n'a pas de lieu exploitable
+          {coverage.placed} item{coverage.placed > 1 ? "s" : ""} sur {items.length} rattaché
+          {coverage.placed > 1 ? "s" : ""} à un pays
+          {unplaced.length > 0 && ` — ${unplaced.join(", ")}`}
         </span>
       </div>
     </div>

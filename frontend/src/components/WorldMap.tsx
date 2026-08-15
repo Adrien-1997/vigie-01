@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { geoNaturalEarth1, geoPath } from "d3-geo";
-import type { AnalyzedItem, Category } from "../types";
-import { COUNTRIES, countryKey, countryLabel, resolveLocation, type CountryFeature } from "../lib/geo";
+import type { AnalyzedItem } from "../types";
+import { COUNTRIES, countryKey, type CountryFeature } from "../lib/geo";
+import { computeCoverage } from "../lib/coverage";
 import { CATEGORY_LABEL, CATEGORY_VAR } from "../lib/taxonomy";
 
 const W = 960;
@@ -19,15 +20,6 @@ const PATHS: { feature: CountryFeature; d: string }[] = DRAWN.map((feature) => (
   d: path(feature) ?? "",
 })).filter((p) => p.d !== "");
 
-interface Bucket {
-  total: number;
-  /** Part du total rattachée autrement que par citation de la source (cf. Provenance, lib/geo.ts). */
-  deduced: number;
-  presumed: number;
-  byCategory: Map<Category, number>;
-  name: string;
-}
-
 interface Props {
   items: AnalyzedItem[];
   selected: string | null;
@@ -37,42 +29,10 @@ interface Props {
 export function WorldMap({ items, selected, onSelect }: Props) {
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
 
-  const { byCountry, unlocated, unresolved, deduced, presumed, max } = useMemo(() => {
-    const byCountry = new Map<string, Bucket>();
-    let unlocated = 0;
-    let unresolved = 0;
-    let deduced = 0;
-    let presumed = 0;
-
-    for (const item of items) {
-      const match = resolveLocation(item);
-      if (!match) {
-        // Deux échecs distincts, et les confondre masquerait lequel est en cause : rien à placer
-        // faute de lieu extrait, ou un lieu bien extrait mais qui n'est dans aucun pays.
-        if (item.location.trim()) unresolved += 1;
-        else unlocated += 1;
-        continue;
-      }
-      const key = countryKey(match.feature);
-      let bucket = byCountry.get(key);
-      if (!bucket) {
-        bucket = { total: 0, deduced: 0, presumed: 0, byCategory: new Map(), name: countryLabel(match.feature) };
-        byCountry.set(key, bucket);
-      }
-      bucket.total += 1;
-      if (match.provenance === "deduced") {
-        bucket.deduced += 1;
-        deduced += 1;
-      } else if (match.provenance === "presumed") {
-        bucket.presumed += 1;
-        presumed += 1;
-      }
-      bucket.byCategory.set(item.category, (bucket.byCategory.get(item.category) ?? 0) + 1);
-    }
-
-    const max = Math.max(0, ...[...byCountry.values()].map((b) => b.total));
-    return { byCountry, unlocated, unresolved, deduced, presumed, max };
-  }, [items]);
+  const { byCountry, unlocated, unresolved, deduced, presumed, max } = useMemo(
+    () => computeCoverage(items),
+    [items],
+  );
 
   // Autant de paliers que de valeurs distinctes possibles, plafonné à la rampe : sur un digest
   // où aucun pays ne dépasse un item, une rampe à quatre paliers ferait croire à une gradation

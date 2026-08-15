@@ -1,6 +1,31 @@
 import type { AnalyzedItem } from "../types";
 import { CATEGORY_LABEL, CATEGORY_VAR } from "../lib/taxonomy";
-import { countryLabel, resolveLocation, sourceCountryLabel } from "../lib/geo";
+import { countryLabel, resolveLocation, sourceCountryLabel, type LocationMatch } from "../lib/geo";
+
+const PROVENANCE_SUFFIX = {
+  cited: "",
+  deduced: " (déduit)",
+  presumed: " (présumé domestique)",
+} as const;
+
+/** Seconde ligne de la colonne Lieu : où l'item atterrit sur la carte, en français.
+ *
+ *  `location` est un extrait verbatim, donc dans la langue de la source (garde-fou §8) : une
+ *  source allemande produit « Großbritannien », qu'on ne peut pas traduire dans la donnée sans
+ *  casser la vérification. Le pays résolu est donc affiché à côté de l'extrait, et non à sa
+ *  place — sauf quand les deux coïncident, où répéter « Ukraine → Ukraine » n'apprend rien.
+ *
+ *  Un lieu extrait mais rattachable à aucun pays est dit tel quel : sans cette mention, la carte
+ *  le compte dans sa légende alors que le tableau n'en dit rien, et l'analyste ne peut pas savoir
+ *  pourquoi son item manque. */
+function resolutionLabel(item: AnalyzedItem, match: LocationMatch | null): string | null {
+  if (!match) return item.location.trim() ? "non rattaché à un pays" : null;
+
+  const label = countryLabel(match.feature);
+  const suffix = PROVENANCE_SUFFIX[match.provenance];
+  if (match.provenance === "cited" && label === item.location.trim()) return null;
+  return `→ ${label}${suffix}`;
+}
 
 /** Vue tableau : canal d'accessibilité exigé par la palette (trois teintes catégorielles
  *  passent sous 3:1 en mode clair) et vue de travail pour comparer les scores en colonne. */
@@ -20,9 +45,10 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
         </thead>
         <tbody>
           {items.map((item) => {
-            // La carte agrège les rattachements non cités ; le tableau est le seul endroit où
-            // l'analyste peut voir lequel de ses items a été placé sans que la source le dise.
+            // La carte agrège ; le tableau est le seul endroit où l'analyste voit, item par item,
+            // où celui-ci atterrit et sur quoi ce rattachement repose.
             const match = resolveLocation(item);
+            const resolution = resolutionLabel(item, match);
             return (
               <tr key={item.link}>
                 <td>
@@ -42,13 +68,10 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
                 </td>
                 <td className="wrap">
                   {item.location || "—"}
-                  {match && match.provenance !== "cited" && (
+                  {resolution && (
                     <>
                       <br />
-                      <span style={{ color: "var(--ink-muted)" }}>
-                        → {countryLabel(match.feature)}{" "}
-                        ({match.provenance === "deduced" ? "déduit" : "présumé domestique"})
-                      </span>
+                      <span style={{ color: "var(--ink-muted)" }}>{resolution}</span>
                     </>
                   )}
                 </td>

@@ -1,6 +1,6 @@
 import type { AnalyzedItem } from "../types";
 import { CATEGORY_LABEL, CATEGORY_VAR, LANG_LABEL } from "../lib/taxonomy";
-import { sourceCountryLabel } from "../lib/geo";
+import { countryLabel, resolveLocation, sourceCountryLabel } from "../lib/geo";
 import { ConfidenceGauge } from "./ConfidenceGauge";
 import { AlertIcon, CheckIcon, PinIcon } from "./Icons";
 
@@ -12,6 +12,14 @@ function formatDate(published: string): string | null {
 
 export function ItemCard({ item }: { item: AnalyzedItem }) {
   const date = formatDate(item.published);
+
+  // Surface de lecture : on montre le pays en français plutôt que l'extrait brut, qui ressort
+  // dans la langue de la source (« Großbritannien »). L'extrait reste consultable en infobulle,
+  // et la traçabilité de l'item est de toute façon portée par le bloc citation au-dessus.
+  // Un lieu non rattachable à un pays n'a pas d'équivalent français : il s'affiche tel quel.
+  const match = resolveLocation(item);
+  const place = match ? countryLabel(match.feature) : item.location;
+  const placeTitle = match && place !== item.location.trim() ? `Lieu extrait de la source : ${item.location}` : undefined;
 
   return (
     <article className="card" style={{ ["--cat" as string]: CATEGORY_VAR[item.category] }}>
@@ -70,11 +78,11 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
         <span>{item.source}</span>
         <span className="sep">·</span>
         <span>{sourceCountryLabel(item.country)}</span>
-        {item.location && (
+        {place && (
           <>
             <span className="sep">·</span>
-            <span>
-              <PinIcon /> {item.location}
+            <span title={placeTitle}>
+              <PinIcon /> {place}
             </span>
           </>
         )}
