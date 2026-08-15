@@ -40,13 +40,13 @@ class _VerifierResult(BaseModel):
     corroborated: bool = Field(description="Au moins un item précédent traite clairement du même dossier")
 
 
-def _make_search_tool(exclude_link: str):
+def _make_search_tool(exclude_links: set[str]):
     @tool
     def search_related_items(query: str) -> str:
         """Cherche dans l'historique des items déjà analysés (jusqu'à 30 jours) ceux qui pourraient
         corroborer ou apporter du contexte sur le dossier en cours. `query` : mots-clés pertinents
         (ex. noms d'entreprises, de pays, type de contrat)."""
-        results = search_related(query, exclude_link=exclude_link, limit=5)
+        results = search_related(query, exclude_links=exclude_links, limit=5)
         if not results:
             return "Aucun item correspondant trouvé dans l'historique."
         return "\n".join(
@@ -57,11 +57,11 @@ def _make_search_tool(exclude_link: str):
     return search_related_items
 
 
-def _verify_item(item: AnalyzedItem) -> tuple[float, bool]:
+def _verify_item(item: AnalyzedItem, exclude_links: set[str]) -> tuple[float, bool]:
     """Boucle agentique bornée par MAX_VERIFIER_STEPS_PER_ITEM. Chaque appel LLM (décision d'outil
     ou conclusion) passe par check_and_increment_llm_call() — le plafond quotidien existant
     (MAX_LLM_CALLS_PER_DAY) absorbe donc aussi ce nœud sans garde-fou séparé."""
-    search_tool = _make_search_tool(item["link"])
+    search_tool = _make_search_tool(exclude_links)
     llm = ChatAnthropic(model=MODEL, temperature=0).bind_tools([search_tool])
 
     messages = [
@@ -99,9 +99,18 @@ def verify(state: VeilleState) -> VeilleState:
     (hors catégorie ou au-delà du plafond) gardent confidence_score/corroborated à None — pas de
     score fabriqué sans base réelle.
 
-    Enregistre d'abord l'historique du run courant (record_analyzed) : search_related_items ne doit
-    jamais voir les items du run en cours, seulement l'historique des runs précédents.
+    L'historique est écrit deux fois, et c'est voulu. Une première fois avant l'escalade : ce nœud
+    fait des appels réseau, et une panne à mi-parcours ne doit pas faire perdre des items déjà
+    analysés et payés. Une seconde fois après, pour que l'historique porte les items tels qu'ils
+    seront affichés, scores compris — il alimente aussi le digest servi par l'API
+    (cf. store.load_digest). L'écriture est un upsert par lien qui préserve la date de première
+    vue : la seconde passe met à jour, elle ne duplique pas.
+
+    L'invariant « search_related_items ne voit jamais le run en cours, seulement l'historique des
+    runs précédents » ne repose donc pas sur l'ordre d'écriture mais sur `exclude_links`, qui porte
+    tous les liens du lot — deux items du même run ne se corroborent pas mutuellement.
     """
+    current_links = {item["link"] for item in state["analyzed_items"]}
     record_analyzed(state["analyzed_items"])
 
     escalated = 0
@@ -109,9 +118,10 @@ def verify(state: VeilleState) -> VeilleState:
     for item in state["analyzed_items"]:
         if item["category"] in VERIFIER_CATEGORIES and escalated < MAX_VERIFIER_ESCALATIONS_PER_RUN:
             escalated += 1
-            confidence_score, corroborated = _verify_item(item)
+            confidence_score, corroborated = _verify_item(item, current_links)
             updated_items.append({**item, "confidence_score": confidence_score, "corroborated": corroborated})
         else:
             updated_items.append(item)
 
+    record_analyzed(updated_items)
     return {"analyzed_items": updated_items}

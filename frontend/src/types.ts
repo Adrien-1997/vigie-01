@@ -29,9 +29,20 @@ export interface AnalyzedItem {
   domestic_to_source?: boolean;
   confidence_score: number | null;
   corroborated: boolean | null;
+  /** Horodatage d'entrée dans l'historique — pas la date de publication de l'article, souvent
+   *  absente des flux. C'est la seule date toujours présente, donc celle qui ordonne le digest. */
+  first_seen?: string;
+  /** Jour d'entrée (`YYYY-MM-DD`), qui porte la fenêtre glissante côté backend. */
+  date?: string;
 }
 
 export interface Digest {
-  generated_at: string;
+  /** Dernière entrée du digest : la dernière collecte ayant réellement produit quelque chose. */
+  generated_at: string | null;
+  /** Profondeur servie, en jours. Le digest est une fenêtre glissante sur l'historique analysé,
+   *  pas le résultat du dernier run (cf. backend/memory/store.py). */
+  window_days: number;
+  /** Profondeur maximale consultable, bornée par la rétention de l'historique côté backend. */
+  max_window_days: number;
   items: AnalyzedItem[];
 }

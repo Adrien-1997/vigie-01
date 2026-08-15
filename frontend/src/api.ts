@@ -6,10 +6,13 @@ export class NoDigestYet extends Error {}
 export class ApiUnreachable extends Error {}
 export class BudgetExceeded extends Error {}
 
-export async function fetchDigest(): Promise<Digest> {
+/** `days` : profondeur de la fenêtre glissante servie par l'API. Omis, le backend applique sa
+ *  valeur par défaut (DIGEST_WINDOW_DAYS) — le front n'a pas à dupliquer ce choix produit. */
+export async function fetchDigest(days?: number): Promise<Digest> {
+  const url = days === undefined ? `${BASE}/events` : `${BASE}/events?days=${days}`;
   let res: Response;
   try {
-    res = await fetch(`${BASE}/events`);
+    res = await fetch(url);
   } catch {
     throw new ApiUnreachable(BASE);
   }

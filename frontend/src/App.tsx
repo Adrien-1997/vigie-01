@@ -20,12 +20,22 @@ type View = "list" | "map" | "table";
 // Référence stable : un littéral `[]` recréé à chaque rendu invaliderait les mémos en aval.
 const NO_ITEMS: AnalyzedItem[] = [];
 
+// Profondeurs proposées, bornées à l'exécution par `max_window_days` que renvoie l'API : la
+// rétention de l'historique est décidée côté backend, le front ne doit pas proposer plus profond
+// que ce qui est réellement conservé.
+const WINDOW_CHOICES = [1, 7, 14, 30];
+
 const SORT_LABEL: Record<SortKey, string> = {
   recent: "Plus récents",
   confidence: "Confiance décroissante",
   review: "Ordre de revue humaine",
   category: "Par catégorie",
 };
+
+function windowLabel(days: number): string {
+  if (days === 1) return "dernières 24 h";
+  return `${days} derniers jours`;
+}
 
 function relativeStamp(iso: string): string {
   const then = new Date(iso);
@@ -45,6 +55,9 @@ export default function App() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<View>("list");
   const [sort, setSort] = useState<SortKey>("recent");
+  // `null` = laisser le backend appliquer sa fenêtre par défaut, tant que l'utilisateur n'a pas
+  // choisi lui-même une profondeur.
+  const [windowDays, setWindowDays] = useState<number | null>(null);
   // Trois états : pas de choix explicite (on suit le système), clair, sombre. Le bouton doit
   // proposer l'inverse du thème *effectif*, pas de la préférence stockée — sinon, sous un système
   // en sombre et sans choix stocké, le premier clic ne change rien à l'écran.
@@ -72,14 +85,14 @@ export default function App() {
 
   const load = useCallback(async () => {
     try {
-      setStatus({ kind: "ready", digest: await fetchDigest() });
+      setStatus({ kind: "ready", digest: await fetchDigest(windowDays ?? undefined) });
     } catch (e) {
       if (e instanceof NoDigestYet) setStatus({ kind: "empty" });
       else if (e instanceof ApiUnreachable)
         setStatus({ kind: "error", message: `API injoignable sur ${e.message}. Le serveur uvicorn tourne-t-il ?` });
       else setStatus({ kind: "error", message: (e as Error).message });
     }
-  }, []);
+  }, [windowDays]);
 
   useEffect(() => {
     void load();
@@ -113,8 +126,14 @@ export default function App() {
 
         <div className="topbar-spacer" />
 
-        {status.kind === "ready" && (
-          <span className="stamp">Digest généré {relativeStamp(status.digest.generated_at)}</span>
+        {/* « Dernière collecte » et non « digest généré » : le digest n'est plus la photographie
+            d'un run mais une fenêtre glissante sur l'historique, dont cet horodatage marque
+            l'entrée la plus récente. */}
+        {status.kind === "ready" && status.digest.generated_at && (
+          <span className="stamp">
+            Dernière collecte {relativeStamp(status.digest.generated_at)} ·{" "}
+            {windowLabel(status.digest.window_days)}
+          </span>
         )}
 
         <button
@@ -201,6 +220,21 @@ export default function App() {
 
               <div className="topbar-spacer" />
 
+              <label className="sr-only" htmlFor="window">
+                Profondeur du digest
+              </label>
+              <select
+                id="window"
+                value={status.digest.window_days}
+                onChange={(e) => setWindowDays(Number(e.target.value))}
+              >
+                {WINDOW_CHOICES.filter((d) => d <= status.digest.max_window_days).map((d) => (
+                  <option key={d} value={d}>
+                    {windowLabel(d)}
+                  </option>
+                ))}
+              </select>
+
               <label className="sr-only" htmlFor="sort">
                 Trier par
               </label>
@@ -221,7 +255,23 @@ export default function App() {
               />
             )}
 
-            {visible.length === 0 ? (
+            {items.length === 0 ? (
+              // Fenêtre vide sur un historique non vide : c'est la profondeur qu'il faut élargir,
+              // pas les filtres. Proposer « réinitialiser les filtres » ici enverrait sur une
+              // fausse piste.
+              <div className="state">
+                <h2>Aucun item sur cette période</h2>
+                <p>
+                  Rien n'a été collecté sur les {status.digest.window_days} derniers jours. Élargir
+                  la période, ou lancer une collecte.
+                </p>
+                {status.digest.window_days < status.digest.max_window_days && (
+                  <button className="btn btn-ghost" onClick={() => setWindowDays(status.digest.max_window_days)}>
+                    Voir {windowLabel(status.digest.max_window_days)}
+                  </button>
+                )}
+              </div>
+            ) : visible.length === 0 ? (
               <div className="state">
                 <h2>Aucun item ne correspond</h2>
                 <p>Les filtres actifs excluent tous les items de ce digest.</p>

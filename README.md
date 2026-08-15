@@ -49,6 +49,10 @@ Sources (RSS par pays, presse spécialisée, communiqués)
 
 Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étape est un nœud, l'état partagé (`VeilleState`, `backend/state.py`) transporte les items d'un nœud à l'autre. Le dédoublonnage est placé *avant* l'appel LLM, pas après, pour ne pas consommer de budget sur des items déjà vus. LangSmith trace chaque nœud sans instrumentation manuelle.
 
+**Le digest est une fenêtre glissante, pas la photographie du dernier run.** Le dédoublonnage écartant, avant tout appel LLM, ce qui a déjà été vu dans les sept derniers jours, une seconde collecte dans la même journée ne produit qu'une poignée d'items neufs. Servir ce résultat brut reviendrait à effacer l'affichage à chaque collecte. `GET /events` lit donc l'historique des items analysés sur une profondeur paramétrable (`?days=`, bornée par la rétention de 30 jours), et le même historique alimente la recherche de recoupement du vérificateur — un seul stock, deux usages.
+
+**Persistance : une interface, deux implémentations** (`backend/memory/persistence.py`). Trois états survivent aux runs : le compteur de budget LLM, les liens déjà vus et l'historique analysé. En développement ce sont des fichiers JSON ; en production ce sont des documents Firestore, parce que le système de fichiers de Cloud Run est éphémère et propre à chaque instance. La différence n'est pas qu'un confort de persistance : avec un compteur sur disque local, `MAX_LLM_CALLS_PER_DAY` redeviendrait contournable par un simple redémarrage. La réservation d'appel est donc exposée comme une opération du stockage (`reserve_llm_call`), atomique par transaction côté Firestore, plutôt que comme une lecture-modification-écriture faite par l'appelant — qui serait correcte en local et fausse en multi-instance. Le backend local reste le défaut : rien ne part vers GCP sans `VEILLE_STORAGE=firestore` explicite.
+
 **Workflow déterministe et boucle agentique, séparés volontairement.** Les nœuds `collect`/`deduplicate`/`analyze` forment un chemin de code fixe : un appel LLM par item, aucune décision dynamique du modèle — c'est le bon compromis pour une tâche de classification traçable et bon marché. Le nœud `verify` est le seul point d'autonomie réelle : pour les catégories les plus sensibles (`export_control`, `contrat_armement`), le modèle dispose d'un outil de recherche dans l'historique des items analysés et décide lui-même s'il l'appelle, combien de fois, avant de conclure. Cette escalade est bornée sur trois axes (catégories éligibles, nombre d'items par run, nombre d'itérations d'outil par item) pour que l'agentivité reste un coût maîtrisé et non proportionnel au volume collecté.
 
 ## Stack
@@ -63,7 +67,7 @@ Implémenté comme un `StateGraph` LangGraph (`backend/graph.py`) : chaque étap
 | Vérificateur (recoupement, score de confiance) | LangGraph + tool-calling borné | 1ʳᵉ tranche construite (catégories sensibles) |
 | Carte de couverture interactive | d3-geo + Natural Earth, sur le champ `location` | construite (V2, 1ʳᵉ tranche) |
 | Déploiement     | Cloud Run + Cloud Scheduler (cron)        | prévu                   |
-| Stockage        | GCS (raw/processed), Firestore (état)     | à valider (V1 : fichiers locaux gitignored) |
+| Stockage        | Fichiers JSON locaux (dev) / Firestore (production), derrière une interface unique | construit en local ; backend Firestore écrit mais **non validé contre une base réelle** |
 
 ## Structure du repo
 

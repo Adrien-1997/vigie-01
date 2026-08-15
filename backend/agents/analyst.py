@@ -2,11 +2,13 @@
 
 import html
 import re
+from collections.abc import Iterator
 
 from langchain_anthropic import ChatAnthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from backend.guardrails import check_and_increment_llm_call
+from backend.memory.store import mark_analyzed_as_seen
 from backend.state import AnalyzedItem, Category, RawItem, VeilleState
 
 MODEL = "claude-haiku-4-5-20251001"
@@ -148,8 +150,33 @@ def classify_item(item: RawItem) -> _Analysis:
 def analyze(state: VeilleState) -> VeilleState:
     """Nœud LangGraph : classe et résume chaque raw_item, rejette les résumés non tracés."""
     analyzed_items: list[AnalyzedItem] = []
-    for item in state["raw_items"]:
-        result = classify_item(item)
+    # Les items dont le sort est réglé — retenus ou écartés. Inscrits dans la mémoire de
+    # dédoublonnage en sortie de nœud, y compris si le nœud échoue en cours de route : ce qui a été
+    # payé ne doit pas être repayé, ce qui n'a pas été traité doit rester collectable.
+    submitted: list[RawItem] = []
+    try:
+        analyzed_items.extend(_analyze_items(state["raw_items"], submitted))
+    finally:
+        mark_analyzed_as_seen(submitted)
+
+    return {"analyzed_items": analyzed_items}
+
+
+def _analyze_items(raw_items: list[RawItem], submitted: list[RawItem]) -> Iterator[AnalyzedItem]:
+    """Générateur : `submitted` se remplit au fil de la consommation, pour que l'appelant sache
+    exactement ce qui a été soumis au modèle même si l'itération s'interrompt."""
+    for item in raw_items:
+        submitted.append(item)
+        try:
+            result = classify_item(item)
+        except ValidationError:
+            # Le modèle peut renvoyer une catégorie hors énumération — vu en conditions réelles sur
+            # une source hispanophone (« diplomacia_defense » au lieu de « diplomatie_defense »).
+            # Un item mal formé se traite comme un item non classable : on l'écarte, comme un résumé
+            # sans citation vérifiable. Le faire remonter ferait perdre tout le run, y compris les
+            # items déjà analysés avant lui — un coût sans rapport avec celui d'un item raté.
+            # L'appel LLM a bien eu lieu : le budget (§8) est décompté, ici comme ailleurs.
+            continue
         clean_text = _clean_text(item["raw_text"])
 
         if result.category == "hors_perimetre":
@@ -192,25 +219,21 @@ def analyze(state: VeilleState) -> VeilleState:
         # de son propre pays, et le périmètre en sur-échantillonne délibérément (cf. §4).
         domestic_to_source = bool(result.domestic) and not location and item["country"] != "INT"
 
-        analyzed_items.append(
-            AnalyzedItem(
-                source=item["source"],
-                lang=item["lang"],
-                country=item["country"],
-                state_affiliated=item["state_affiliated"],
-                title=item["title"],
-                title_fr=result.title_fr,
-                link=item["link"],
-                published=item["published"],
-                category=result.category,
-                summary=result.summary,
-                citation=result.citation,
-                location=location,
-                location_country=location_country,
-                domestic_to_source=domestic_to_source,
-                confidence_score=None,
-                corroborated=None,
-            )
+        yield AnalyzedItem(
+            source=item["source"],
+            lang=item["lang"],
+            country=item["country"],
+            state_affiliated=item["state_affiliated"],
+            title=item["title"],
+            title_fr=result.title_fr,
+            link=item["link"],
+            published=item["published"],
+            category=result.category,
+            summary=result.summary,
+            citation=result.citation,
+            location=location,
+            location_country=location_country,
+            domestic_to_source=domestic_to_source,
+            confidence_score=None,
+            corroborated=None,
         )
-
-    return {"analyzed_items": analyzed_items}

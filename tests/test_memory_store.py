@@ -15,23 +15,50 @@ def _item(link: str) -> dict:
     }
 
 
-def test_deduplicate_filters_items_already_seen(tmp_path, monkeypatch):
-    monkeypatch.setattr(store, "_STORE_FILE", tmp_path / "seen.json")
-
+def test_deduplicate_filters_items_already_submitted_to_the_analyst():
     first = store.deduplicate({"raw_items": [_item("a"), _item("b")], "analyzed_items": []})
     assert [i["link"] for i in first["raw_items"]] == ["a", "b"]
+    store.mark_analyzed_as_seen(first["raw_items"])
 
     second = store.deduplicate({"raw_items": [_item("a"), _item("c")], "analyzed_items": []})
     assert [i["link"] for i in second["raw_items"]] == ["c"]
 
 
-def test_prune_drops_entries_older_than_dedup_window():
-    old_date = (date.today() - timedelta(days=store.DEDUP_WINDOW_DAYS + 1)).isoformat()
-    recent_date = date.today().isoformat()
+def test_items_stay_collectable_until_they_have_actually_been_analyzed():
+    """Le marquage appartient au nœud analyze, pas au dédoublonnage : un run interrompu entre les
+    deux laissait des items réputés vus sans avoir jamais été analysés — donc écartés de toutes les
+    collectes suivantes. Constaté en réel sur 12 items."""
+    store.deduplicate({"raw_items": [_item("a")], "analyzed_items": []})  # run interrompu ensuite
 
-    pruned = store._prune({"stale-link": old_date, "fresh-link": recent_date})
+    retry = store.deduplicate({"raw_items": [_item("a")], "analyzed_items": []})
 
-    assert pruned == {"fresh-link": recent_date}
+    assert [i["link"] for i in retry["raw_items"]] == ["a"]
+
+
+def test_deduplicate_also_collapses_duplicates_inside_one_run():
+    """Deux flux peuvent republier le même lien dans la même collecte : le doublon doit tomber
+    avant l'appel LLM, pas seulement d'un run à l'autre."""
+    result = store.deduplicate({"raw_items": [_item("a"), _item("a")], "analyzed_items": []})
+
+    assert [i["link"] for i in result["raw_items"]] == ["a"]
+
+
+def test_items_dropped_by_the_analyst_are_still_marked_as_seen():
+    """Un item écarté en hors_perimetre a déjà coûté son appel LLM : il doit être filtré sans frais
+    aux collectes suivantes, pas resoumis chaque jour."""
+    submitted = store.deduplicate({"raw_items": [_item("a")], "analyzed_items": []})["raw_items"]
+    store.mark_analyzed_as_seen(submitted)  # aucun item retenu, tous écartés par analyze()
+
+    assert store.deduplicate({"raw_items": [_item("a")], "analyzed_items": []})["raw_items"] == []
+
+
+def test_seen_links_outside_the_dedup_window_are_purged(persistence):
+    stale = (date.today() - timedelta(days=store.DEDUP_WINDOW_DAYS + 1)).isoformat()
+    persistence.mark_seen({"stale-link": stale, "fresh-link": date.today().isoformat()})
+
+    store.deduplicate({"raw_items": [], "analyzed_items": []})
+
+    assert set(persistence.seen_links("0000-01-01")) == {"fresh-link"}
 
 
 def _analyzed_item(link: str, title_fr: str, summary: str, category: str = "contrat_armement") -> dict:
@@ -53,9 +80,7 @@ def _analyzed_item(link: str, title_fr: str, summary: str, category: str = "cont
     }
 
 
-def test_search_related_finds_items_sharing_keywords(tmp_path, monkeypatch):
-    monkeypatch.setattr(store, "_ANALYZED_STORE_FILE", tmp_path / "history.json")
-
+def test_search_related_finds_items_sharing_keywords():
     store.record_analyzed(
         [
             _analyzed_item("a", "Rafale vendu à la Grèce", "Contrat Dassault confirmé"),
@@ -63,47 +88,83 @@ def test_search_related_finds_items_sharing_keywords(tmp_path, monkeypatch):
         ]
     )
 
-    results = store.search_related("Rafale Grèce Dassault", exclude_link="c")
+    results = store.search_related("Rafale Grèce Dassault", exclude_links={"c"})
 
     assert [r["title_fr"] for r in results] == ["Rafale vendu à la Grèce"]
 
 
-def test_search_related_excludes_the_item_itself(tmp_path, monkeypatch):
-    monkeypatch.setattr(store, "_ANALYZED_STORE_FILE", tmp_path / "history.json")
+def test_search_related_excludes_every_link_of_the_current_run():
+    """Un item ne se corrobore ni lui-même ni via un autre item du même lot : deux dépêches
+    arrivées dans la même collecte ne sont pas une confirmation indépendante dans le temps."""
+    store.record_analyzed(
+        [
+            _analyzed_item("a", "Rafale vendu à la Grèce", "Contrat Dassault confirmé"),
+            _analyzed_item("b", "Rafale : la Grèce signe", "Dassault confirme le contrat"),
+        ]
+    )
 
-    store.record_analyzed([_analyzed_item("a", "Rafale vendu à la Grèce", "Contrat Dassault confirmé")])
-
-    results = store.search_related("Rafale Grèce Dassault", exclude_link="a")
-
-    assert results == []
+    assert store.search_related("Rafale Grèce Dassault", exclude_links={"a", "b"}) == []
 
 
-def test_search_related_prunes_entries_older_than_window(tmp_path, monkeypatch):
-    history_file = tmp_path / "history.json"
-    monkeypatch.setattr(store, "_ANALYZED_STORE_FILE", history_file)
-
+def test_search_related_prunes_entries_older_than_window(persistence):
     old_date = (date.today() - timedelta(days=store.RELATED_ITEMS_WINDOW_DAYS + 1)).isoformat()
-    store._save_analyzed(
+    persistence.put_analyzed(
+        [{**_analyzed_item("a", "Rafale vendu à la Grèce", "Contrat Dassault confirmé"), "date": old_date}]
+    )
+
+    assert store.search_related("Rafale Grèce Dassault", exclude_links={"z"}) == []
+
+
+def test_record_analyzed_is_not_visible_to_search_before_it_is_called():
+    assert store.search_related("Rafale Grèce Dassault", exclude_links={"z"}) == []
+
+
+def test_digest_accumulates_across_runs_instead_of_being_replaced():
+    """Le défaut corrigé : chaque run écrasait le digest, donc une seconde collecte dans la journée
+    — dont le dédoublonnage a écarté presque tous les items — effaçait l'historique affiché."""
+    store.record_analyzed([_analyzed_item("a", "Premier run", "résumé a")])
+    store.record_analyzed([_analyzed_item("b", "Second run", "résumé b")])
+
+    assert {i["link"] for i in store.load_digest(store.DEDUP_WINDOW_DAYS)} == {"a", "b"}
+
+
+def test_digest_is_empty_for_a_window_that_predates_every_item(persistence):
+    old_date = (date.today() - timedelta(days=10)).isoformat()
+    persistence.put_analyzed([{**_analyzed_item("a", "Ancien", "résumé"), "date": old_date}])
+
+    assert store.load_digest(3) == []
+    assert [i["link"] for i in store.load_digest(30)] == ["a"]
+
+
+def test_re_recording_an_item_updates_it_without_duplicating_or_rejuvenating_it(persistence):
+    store.record_analyzed([_analyzed_item("a", "titre", "résumé")])
+    first_seen = store.load_digest(1)[0]["first_seen"]
+
+    scored = {**_analyzed_item("a", "titre", "résumé"), "confidence_score": 0.8, "corroborated": True}
+    store.record_analyzed([scored])
+
+    digest = store.load_digest(1)
+    assert len(digest) == 1
+    assert digest[0]["confidence_score"] == 0.8
+    assert digest[0]["first_seen"] == first_seen
+
+
+def test_digest_skips_records_that_predate_the_full_item_schema(persistence):
+    """L'ancien historique ne gardait que 7 champs par item : exploitable pour le recoupement,
+    pas pour l'affichage. Ces enregistrements sont écartés du digest, pas servis incomplets."""
+    persistence.put_analyzed(
         [
             {
-                "date": old_date,
-                "link": "a",
+                "date": date.today().isoformat(),
+                "link": "legacy",
                 "source": "s",
                 "country": "FR",
                 "category": "contrat_armement",
-                "title_fr": "Rafale vendu à la Grèce",
-                "summary": "Contrat Dassault confirmé",
+                "title_fr": "Ancien format",
+                "summary": "résumé",
             }
         ]
     )
 
-    results = store.search_related("Rafale Grèce Dassault", exclude_link="z")
-
-    assert results == []
-
-
-def test_record_analyzed_is_not_visible_to_search_before_it_is_called(tmp_path, monkeypatch):
-    monkeypatch.setattr(store, "_ANALYZED_STORE_FILE", tmp_path / "history.json")
-
-    # Rien enregistré encore : search_related sur un historique vide ne doit rien renvoyer.
-    assert store.search_related("Rafale Grèce Dassault", exclude_link="z") == []
+    assert store.load_digest(7) == []
+    assert [r["title_fr"] for r in store.search_related("Ancien format", exclude_links=set())] == ["Ancien format"]

@@ -83,6 +83,27 @@ def test_analyze_keeps_items_with_verified_citation(monkeypatch):
     assert result["analyzed_items"][0]["category"] == "contrat_armement"
 
 
+def test_analyze_skips_an_unparsable_classification_without_losing_the_rest_of_the_run(monkeypatch):
+    """Constaté en run réel : le modèle a renvoyé « diplomacia_defense » sur une source
+    hispanophone. L'erreur de validation remontait jusqu'au graphe et faisait perdre tous les items
+    déjà analysés — coût sans rapport avec celui d'un item raté."""
+    from pydantic import ValidationError
+
+    def _classify(item):
+        if item["link"] == "bad":
+            raise ValidationError.from_exception_data("_Analysis", [])
+        return _FakeAnalysis("contrat_armement", "source text about a contract")
+
+    monkeypatch.setattr(analyst, "classify_item", _classify)
+
+    good, bad = _raw_item("Actual source text about a contract."), _raw_item("Autre texte")
+    bad["link"] = "bad"
+
+    result = analyst.analyze({"raw_items": [bad, good], "analyzed_items": []})
+
+    assert [i["link"] for i in result["analyzed_items"]] == ["l"]
+
+
 def test_analyze_blanks_unverified_location_instead_of_trusting_it(monkeypatch):
     monkeypatch.setattr(
         analyst,

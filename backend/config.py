@@ -93,6 +93,14 @@ SOURCES: list[Source] = [
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY")
 
+# Backend de persistance (cf. backend/memory/persistence.py) : "local" (fichiers JSON, défaut) ou
+# "firestore" (Cloud Run, où le disque est éphémère et non partagé entre instances). Défaut
+# volontairement local — contrairement aux plafonds ci-dessous, une valeur absente n'est pas une
+# config incomplète mais le cas de développement normal, et rien ne doit partir vers GCP par défaut.
+STORAGE_BACKEND = os.getenv("VEILLE_STORAGE", "local")
+FIRESTORE_PROJECT = os.getenv("FIRESTORE_PROJECT", "")
+FIRESTORE_DATABASE = os.getenv("FIRESTORE_DATABASE", "(default)")
+
 # Fenêtre de fraîcheur appliquée à la collecte (backend/agents/collector.py) : au-delà de cette
 # ancienneté, un item est écarté avant même le dédoublonnage. Certains flux institutionnels
 # (Defense.gov, Bruxelles2, NK News) exposent un historique profond (des mois, voire années) sans
@@ -118,3 +126,10 @@ MAX_VERIFIER_ESCALATIONS_PER_RUN = 15
 # compte les nœuds du graphe LangGraph — une boucle interne à une fonction de nœud n'y est pas
 # soumise).
 MAX_VERIFIER_STEPS_PER_ITEM = 3
+
+# Profondeur par défaut du digest servi par GET /events, en jours. Le digest est une fenêtre
+# glissante sur l'historique analysé (backend/memory/store.py), pas le résultat du dernier run :
+# sinon un second run dans la même journée, dont le dédoublonnage a écarté presque tous les items,
+# remplacerait le digest de la veille par une poignée de nouveautés. Plafonné par la rétention de
+# l'historique (RELATED_ITEMS_WINDOW_DAYS) — on ne peut pas servir plus profond qu'on ne conserve.
+DIGEST_WINDOW_DAYS = 7
