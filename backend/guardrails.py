@@ -19,12 +19,18 @@ class BudgetExceeded(RuntimeError):
 
 
 def check_and_increment_llm_call() -> None:
-    """À appeler avant chaque appel LLM. Lève BudgetExceeded si le plafond quotidien est atteint."""
+    """À appeler avant chaque appel LLM. Lève BudgetExceeded si le plafond quotidien est atteint.
+
+    L'appel n'a pas lieu quand cette exception est levée : elle est déclenchée par le refus de
+    réservation, en amont du modèle. L'item sur lequel elle tombe n'a donc rien coûté et reste
+    entièrement à traiter — c'est ce qui permet aux nœuds appelants de le rendre à une collecte
+    ultérieure plutôt que de le marquer comme vu (cf. backend/agents/analyst.py).
+    """
     today = date.today().isoformat()
     if not get_persistence().reserve_llm_call(today, MAX_LLM_CALLS_PER_DAY):
         raise BudgetExceeded(
-            f"Plafond quotidien d'appels LLM atteint ({MAX_LLM_CALLS_PER_DAY}/jour). "
-            f"Run interrompu à {datetime.now(UTC).isoformat()} "
+            f"Plafond quotidien d'appels LLM atteint ({MAX_LLM_CALLS_PER_DAY}/jour) "
+            f"à {datetime.now(UTC).isoformat()} : appel refusé, run tronqué "
             "(garde-fou non négociable, cf. docs/cadrage.md §6)."
         )
 

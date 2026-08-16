@@ -42,6 +42,6 @@ def run_pipeline() -> VeilleState:
     """
     graph = build_graph()
     return graph.invoke(
-        {"raw_items": [], "analyzed_items": []},
+        {"raw_items": [], "analyzed_items": [], "truncated": False},
         config={"recursion_limit": MAX_STEPS_PER_RUN},
     )

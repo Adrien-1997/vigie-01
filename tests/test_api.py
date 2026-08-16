@@ -1,7 +1,6 @@
 from fastapi.testclient import TestClient
 
 from backend.api import main as api_main
-from backend.guardrails import BudgetExceeded
 
 FAKE_ITEM = {
     "source": "s",
@@ -39,7 +38,7 @@ def test_run_then_events_roundtrip(monkeypatch):
     def _fake_pipeline() -> dict:
         # Le vrai pipeline écrit l'historique dans son nœud verify ; /events le relit depuis là.
         store.record_analyzed([FAKE_ITEM])
-        return {"analyzed_items": [FAKE_ITEM]}
+        return {"analyzed_items": [FAKE_ITEM], "truncated": False}
 
     monkeypatch.setattr(api_main, "run_pipeline", _fake_pipeline)
 
@@ -58,7 +57,7 @@ def test_events_keeps_previous_items_when_a_later_run_brings_nothing_new(monkeyp
     from backend.memory import store
 
     store.record_analyzed([FAKE_ITEM])
-    monkeypatch.setattr(api_main, "run_pipeline", lambda: {"analyzed_items": []})
+    monkeypatch.setattr(api_main, "run_pipeline", lambda: {"analyzed_items": [], "truncated": False})
 
     client = _client()
     assert client.post("/run").json()["item_count"] == 0
@@ -100,10 +99,19 @@ def test_events_returns_an_empty_window_rather_than_404_when_history_exists():
     assert res.json()["items"] == []
 
 
-def test_run_maps_budget_exceeded_to_429_not_500(monkeypatch):
-    def _raise():
-        raise BudgetExceeded("plafond atteint")
+def test_run_reports_a_truncated_run_as_a_partial_success_not_an_error(monkeypatch):
+    """Le plafond de budget ne remonte plus en exception : les nœuds tronquent et rendent ce qu'ils
+    ont produit. Répondre 429 ferait ignorer au front un digest réellement enrichi — il ne recharge
+    pas sur erreur, ce qui masquait la mise à jour."""
+    monkeypatch.setattr(api_main, "run_pipeline", lambda: {"analyzed_items": [FAKE_ITEM], "truncated": True})
 
-    monkeypatch.setattr(api_main, "run_pipeline", _raise)
+    res = _client().post("/run")
 
-    assert _client().post("/run").status_code == 429
+    assert res.status_code == 200
+    assert res.json() == {"item_count": 1, "truncated": True}
+
+
+def test_run_reports_a_complete_run_as_untruncated(monkeypatch):
+    monkeypatch.setattr(api_main, "run_pipeline", lambda: {"analyzed_items": [FAKE_ITEM], "truncated": False})
+
+    assert _client().post("/run").json() == {"item_count": 1, "truncated": False}

@@ -3,11 +3,12 @@
 import html
 import re
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 
 from langchain_anthropic import ChatAnthropic
 from pydantic import BaseModel, Field, ValidationError
 
-from backend.guardrails import check_and_increment_llm_call
+from backend.guardrails import BudgetExceeded, check_and_increment_llm_call
 from backend.memory.store import mark_analyzed_as_seen
 from backend.state import AnalyzedItem, Category, RawItem, VeilleState
 
@@ -147,28 +148,51 @@ def classify_item(item: RawItem) -> _Analysis:
     )
 
 
-def analyze(state: VeilleState) -> VeilleState:
-    """Nœud LangGraph : classe et résume chaque raw_item, rejette les résumés non tracés."""
-    analyzed_items: list[AnalyzedItem] = []
+@dataclass
+class _Progress:
+    """Ce que le nœud a réellement soumis au modèle, et s'il s'est arrêté avant la fin du lot.
+
+    Mutable et partagé avec le générateur plutôt que renvoyé en fin d'itération : l'appelant doit
+    pouvoir lire ces deux informations même si l'itération s'interrompt en cours de route.
+    """
+
     # Les items dont le sort est réglé — retenus ou écartés. Inscrits dans la mémoire de
     # dédoublonnage en sortie de nœud, y compris si le nœud échoue en cours de route : ce qui a été
     # payé ne doit pas être repayé, ce qui n'a pas été traité doit rester collectable.
-    submitted: list[RawItem] = []
+    submitted: list[RawItem] = field(default_factory=list)
+    truncated: bool = False
+
+
+def analyze(state: VeilleState) -> VeilleState:
+    """Nœud LangGraph : classe et résume chaque raw_item, rejette les résumés non tracés."""
+    analyzed_items: list[AnalyzedItem] = []
+    progress = _Progress()
     try:
-        analyzed_items.extend(_analyze_items(state["raw_items"], submitted))
+        analyzed_items.extend(_analyze_items(state["raw_items"], progress))
     finally:
-        mark_analyzed_as_seen(submitted)
+        mark_analyzed_as_seen(progress.submitted)
 
-    return {"analyzed_items": analyzed_items}
+    return {"analyzed_items": analyzed_items, "truncated": progress.truncated}
 
 
-def _analyze_items(raw_items: list[RawItem], submitted: list[RawItem]) -> Iterator[AnalyzedItem]:
-    """Générateur : `submitted` se remplit au fil de la consommation, pour que l'appelant sache
+def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[AnalyzedItem]:
+    """Générateur : `progress` se remplit au fil de la consommation, pour que l'appelant sache
     exactement ce qui a été soumis au modèle même si l'itération s'interrompt."""
     for item in raw_items:
-        submitted.append(item)
+        progress.submitted.append(item)
         try:
             result = classify_item(item)
+        except BudgetExceeded:
+            # Le plafond quotidien tronque le lot, il ne détruit pas le travail déjà payé : on cesse
+            # d'itérer et on rend les items déjà analysés, que l'appelant enregistrera normalement.
+            #
+            # Cet item-ci, en revanche, n'a rien coûté : le plafond est vérifié *avant* l'appel
+            # (backend/guardrails.py), qui n'a donc pas eu lieu. Le retirer des soumis est ce qui le
+            # garde collectable demain — le laisser le ferait marquer « vu » sans avoir jamais été
+            # analysé, exactement la perte que `mark_analyzed_as_seen` a été déplacé ici pour éviter.
+            progress.submitted.pop()
+            progress.truncated = True
+            return
         except ValidationError:
             # Le modèle peut renvoyer une catégorie hors énumération — vu en conditions réelles sur
             # une source hispanophone (« diplomacia_defense » au lieu de « diplomatie_defense »).

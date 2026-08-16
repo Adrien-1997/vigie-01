@@ -15,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import DIGEST_WINDOW_DAYS
 from backend.graph import run_pipeline
-from backend.guardrails import BudgetExceeded
 from backend.memory.store import RELATED_ITEMS_WINDOW_DAYS, last_run_at, load_digest
 
 app = FastAPI(title="VEILLE-01 API")
@@ -37,13 +36,13 @@ def health() -> dict:
 
 @app.post("/run")
 def run() -> dict:
-    try:
-        result = run_pipeline()
-    except BudgetExceeded as e:
-        # Garde-fou §8 : le run est interrompu volontairement, ce n'est pas une panne serveur.
-        raise HTTPException(status_code=429, detail=str(e)) from e
-
-    return {"item_count": len(result["analyzed_items"])}
+    # Le plafond de budget (garde-fou §8) ne remonte plus jusqu'ici : il tronque le run dans les
+    # noeuds qui appellent le modele, qui rendent ce qu'ils ont deja produit et payé. Un run
+    # tronqué est donc un succes partiel — 200 avec truncated=True — et non un 429 : repondre par
+    # une erreur ferait ignorer au client un digest qui a bien ete enrichi, ce qui etait le cas
+    # avant cette correction (le front ne recharge pas le digest sur erreur).
+    result = run_pipeline()
+    return {"item_count": len(result["analyzed_items"]), "truncated": result["truncated"]}
 
 
 @app.get("/events")

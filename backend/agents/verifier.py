@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend.config import MAX_VERIFIER_ESCALATIONS_PER_RUN, MAX_VERIFIER_STEPS_PER_ITEM, VERIFIER_CATEGORIES
-from backend.guardrails import check_and_increment_llm_call
+from backend.guardrails import BudgetExceeded, check_and_increment_llm_call
 from backend.memory.store import record_analyzed, search_related
 from backend.state import AnalyzedItem, VeilleState
 
@@ -109,19 +109,39 @@ def verify(state: VeilleState) -> VeilleState:
     L'invariant « search_related_items ne voit jamais le run en cours, seulement l'historique des
     runs précédents » ne repose donc pas sur l'ordre d'écriture mais sur `exclude_links`, qui porte
     tous les liens du lot — deux items du même run ne se corroborent pas mutuellement.
+
+    Si le plafond quotidien tombe pendant l'escalade, la vérification s'arrête là mais le nœud va
+    jusqu'au bout : les items restants sont conservés tels quels, `confidence_score`/`corroborated`
+    à None, et l'historique est écrit comme d'habitude. Un item analysé et payé ne doit pas être
+    perdu parce que sa vérification, elle, n'a pas pu être financée.
     """
     current_links = {item["link"] for item in state["analyzed_items"]}
     record_analyzed(state["analyzed_items"])
 
     escalated = 0
+    budget_exhausted = False
     updated_items: list[AnalyzedItem] = []
     for item in state["analyzed_items"]:
-        if item["category"] in VERIFIER_CATEGORIES and escalated < MAX_VERIFIER_ESCALATIONS_PER_RUN:
-            escalated += 1
-            confidence_score, corroborated = _verify_item(item, current_links)
-            updated_items.append({**item, "confidence_score": confidence_score, "corroborated": corroborated})
-        else:
+        escalatable = (
+            not budget_exhausted
+            and item["category"] in VERIFIER_CATEGORIES
+            and escalated < MAX_VERIFIER_ESCALATIONS_PER_RUN
+        )
+        if not escalatable:
             updated_items.append(item)
+            continue
+
+        escalated += 1
+        try:
+            confidence_score, corroborated = _verify_item(item, current_links)
+        except BudgetExceeded:
+            # Plus rien à financer : cet item et tous les suivants restent non vérifiés. C'est
+            # exactement l'état « hors périmètre du vérificateur » que porte déjà None, et que la
+            # restitution rend comme tel — pas de score fabriqué pour combler le vide.
+            budget_exhausted = True
+            updated_items.append(item)
+            continue
+        updated_items.append({**item, "confidence_score": confidence_score, "corroborated": corroborated})
 
     record_analyzed(updated_items)
-    return {"analyzed_items": updated_items}
+    return {"analyzed_items": updated_items, "truncated": state.get("truncated", False) or budget_exhausted}

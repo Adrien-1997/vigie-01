@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiUnreachable, BudgetExceeded, NoDigestYet, fetchDigest, triggerRun } from "./api";
+import { ApiUnreachable, NoDigestYet, fetchDigest, triggerRun } from "./api";
 import type { AnalyzedItem, Digest } from "./types";
 import { EMPTY_FILTERS, applyFilters, sortItems, type Filters, type SortKey } from "./lib/filters";
 import { FilterRail } from "./components/FilterRail";
@@ -52,6 +52,9 @@ export default function App() {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
+  // Distinct de `runError` : un run tronqué a produit et enregistré des items. Le rendre en rouge
+  // le ferait lire comme un échec, alors que le digest affiché vient d'être mis à jour.
+  const [runNotice, setRunNotice] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<View>("list");
   const [sort, setSort] = useState<SortKey>("recent");
@@ -101,12 +104,21 @@ export default function App() {
   const run = async () => {
     setRunning(true);
     setRunError(null);
+    setRunNotice(null);
     try {
-      await triggerRun();
+      const result = await triggerRun();
       await load();
+      // Un run tronqué par le plafond de budget est un succès partiel, pas une erreur : le digest
+      // vient bien d'être enrichi des items analysés avant l'arrêt. Le signaler explicitement —
+      // silencieux, il se lirait comme une collecte complète, donc comme une actualité pauvre.
+      if (result.truncated)
+        setRunNotice(
+          `Plafond de budget LLM atteint : la collecte s'est arrêtée avant la fin du lot. ` +
+            `${result.item_count} item${result.item_count > 1 ? "s" : ""} analysé${result.item_count > 1 ? "s" : ""} ` +
+            `et conservé${result.item_count > 1 ? "s" : ""} ; les articles non traités restent collectables à la prochaine collecte.`,
+        );
     } catch (e) {
-      if (e instanceof BudgetExceeded) setRunError(`Plafond de budget atteint — ${e.message}`);
-      else if (e instanceof ApiUnreachable) setRunError(`API injoignable sur ${e.message}.`);
+      if (e instanceof ApiUnreachable) setRunError(`API injoignable sur ${e.message}.`);
       else setRunError((e as Error).message);
     } finally {
       setRunning(false);
@@ -160,6 +172,16 @@ export default function App() {
       {runError && (
         <div className="topbar" style={{ borderTop: "none", color: "var(--status-critical)", fontSize: 13 }}>
           {runError}
+        </div>
+      )}
+
+      {runNotice && (
+        <div
+          className="topbar"
+          role="status"
+          style={{ borderTop: "none", color: "var(--status-warning)", fontSize: 13 }}
+        >
+          {runNotice}
         </div>
       )}
 

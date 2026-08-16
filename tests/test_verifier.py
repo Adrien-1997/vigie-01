@@ -140,6 +140,48 @@ def test_verify_records_the_scored_items_not_their_pre_verification_version(monk
     assert recorded[0]["corroborated"] is True
 
 
+def test_verify_truncates_escalation_without_losing_the_items_already_analyzed(monkeypatch):
+    """Un item analysé et payé ne doit pas disparaître parce que sa vérification, elle, n'a pas pu
+    être financée : le nœud va au bout du lot, laisse None sur les non vérifiés — l'état que la
+    restitution rend déjà comme « hors périmètre du vérificateur » — et écrit l'historique."""
+    import backend.memory.store as store
+    from backend.guardrails import BudgetExceeded
+
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion(0.8, True))
+
+    calls = [0]
+
+    def _budget():
+        # Laisse passer le premier item (boucle d'outil + conclusion), coupe pendant le second.
+        calls[0] += 1
+        if calls[0] > 2:
+            raise BudgetExceeded("plafond atteint")
+
+    monkeypatch.setattr(verifier, "check_and_increment_llm_call", _budget)
+
+    items = [_analyzed_item("export_control", "a"), _analyzed_item("export_control", "b")]
+    result = verifier.verify({"raw_items": [], "analyzed_items": items})
+
+    by_link = {i["link"]: i for i in result["analyzed_items"]}
+    assert by_link["a"]["confidence_score"] == 0.8
+    assert by_link["b"]["confidence_score"] is None
+    assert result["truncated"] is True
+    # Les deux items restent dans l'historique : c'est lui qui alimente le digest servi par l'API.
+    assert {r["link"] for r in store.load_digest(1)} == {"a", "b"}
+
+
+def test_verify_preserves_a_truncation_already_flagged_by_analyze(monkeypatch):
+    """Le drapeau traverse le graphe : verify écrit la même clé d'état et ne doit pas effacer une
+    troncature survenue en amont, sans quoi l'API annoncerait un run complet."""
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion(0.8, True))
+
+    result = verifier.verify(
+        {"raw_items": [], "analyzed_items": [_analyzed_item("mouvement_militaire", "a")], "truncated": True}
+    )
+
+    assert result["truncated"] is True
+
+
 def test_verify_never_lets_two_items_of_the_same_run_corroborate_each_other(monkeypatch):
     """Le nœud écrivait l'historique avant d'escalader, en n'excluant ensuite que le lien de l'item
     courant : un item pouvait donc être « corroboré » par son voisin de lot, qui n'apporte aucune

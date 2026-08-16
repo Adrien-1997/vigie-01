@@ -104,6 +104,54 @@ def test_analyze_skips_an_unparsable_classification_without_losing_the_rest_of_t
     assert [i["link"] for i in result["analyzed_items"]] == ["l"]
 
 
+def test_analyze_truncates_the_run_when_the_budget_falls_instead_of_losing_what_it_paid_for(monkeypatch):
+    """Point 29 du journal : quand le plafond tombait pendant analyze, l'exception remontait au
+    graphe et verify n'était jamais atteint — donc record_analyzed non plus. Les items déjà
+    analysés étaient marqués vus par le `finally` et enregistrés nulle part : payés, perdus."""
+    from backend.guardrails import BudgetExceeded
+
+    def _classify(item):
+        if item["link"] != "l":
+            raise BudgetExceeded("plafond atteint")
+        return _FakeAnalysis("contrat_armement", "source text about a contract")
+
+    monkeypatch.setattr(analyst, "classify_item", _classify)
+
+    done = _raw_item("Actual source text about a contract.")
+    unpaid, later = _raw_item("Autre texte"), _raw_item("Encore un texte")
+    unpaid["link"], later["link"] = "unpaid", "later"
+
+    result = analyst.analyze({"raw_items": [done, unpaid, later], "analyzed_items": []})
+
+    assert [i["link"] for i in result["analyzed_items"]] == ["l"]
+    assert result["truncated"] is True
+
+
+def test_analyze_leaves_the_unbilled_item_collectable_when_the_budget_falls(monkeypatch):
+    """Le plafond est vérifié *avant* l'appel : l'item sur lequel il tombe n'a rien coûté. Le
+    marquer « vu » l'écarterait de toutes les collectes suivantes sans qu'il ait jamais été
+    analysé — la perte du point 28, réintroduite par le chemin du budget."""
+    import backend.memory.store as store
+    from backend.guardrails import BudgetExceeded
+
+    def _classify(item):
+        if item["link"] != "l":
+            raise BudgetExceeded("plafond atteint")
+        return _FakeAnalysis("contrat_armement", "source text about a contract")
+
+    monkeypatch.setattr(analyst, "classify_item", _classify)
+
+    done = _raw_item("Actual source text about a contract.")
+    unpaid, later = _raw_item("Autre texte"), _raw_item("Encore un texte")
+    unpaid["link"], later["link"] = "unpaid", "later"
+
+    analyst.analyze({"raw_items": [done, unpaid, later], "analyzed_items": []})
+
+    # Rejoué à la collecte suivante : seul l'item réellement soumis au modèle est écarté.
+    still_collectable = store.deduplicate({"raw_items": [done, unpaid, later], "analyzed_items": []})
+    assert [i["link"] for i in still_collectable["raw_items"]] == ["unpaid", "later"]
+
+
 def test_analyze_blanks_unverified_location_instead_of_trusting_it(monkeypatch):
     monkeypatch.setattr(
         analyst,

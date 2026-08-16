@@ -55,3 +55,8 @@ class AnalyzedItem(TypedDict):
 class VeilleState(TypedDict):
     raw_items: list[RawItem]
     analyzed_items: list[AnalyzedItem]
+    # Vrai si le plafond quotidien d'appels LLM (backend/guardrails.py) a arrêté le run avant la fin
+    # du lot. Le run reste un succès partiel : les items déjà analysés sont conservés et servis, et
+    # ce drapeau dit à l'appelant que le lot n'a pas été traité en entier — sans lui, une collecte
+    # tronquée serait indiscernable d'une collecte complète pauvre en nouveautés.
+    truncated: bool
