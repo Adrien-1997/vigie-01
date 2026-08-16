@@ -127,6 +127,17 @@ Le critère décisif n'est pas la vitesse de mise en œuvre initiale mais la cap
 
 **Deuxième mesure (2026-08-14, n=88, après reconfiguration des sources par pays)** : 73/88 (83 %), légèrement sous la cible. Les 15 désaccords ont fait ressortir deux frontières de catégorie mal définies (`diplomatie_defense` vs `mouvement_militaire`, 4 cas ; `diplomatie_defense` vs `hors_perimetre`, 3 cas), corrigées ci-dessus §4. **Réserve méthodologique** : une partie de l'échantillon (~20 items) a été annotée avec l'aide d'un second avis consulté pendant l'annotation plutôt que jugée de façon strictement indépendante — le chiffre de 83 % doit être lu comme indicatif, pas comme une mesure d'accord indépendant au sens strict. Une reprise avec annotation strictement indépendante, après le correctif de prompt ci-dessus, est nécessaire avant de considérer ce KPI comme validé ou non sur cette itération des sources.
 
+**Troisième mesure (2026-08-16, n=68, échantillon reconstruit après les correctifs de frontière)** : 51/68 (75 %), **sous la cible**. Le chiffre global masque deux régimes très différents, et c'est le résultat utile de cette mesure :
+
+| Décomposition | Résultat |
+|---|---|
+| Décision de périmètre seule (dans / hors) | 58/68 (85 %) |
+| Catégorie fine, sur les items jugés dans le périmètre | 23/36 (64 %) |
+
+Le filtrage du bruit atteint donc la cible, alors que la qualification des items qui parviennent au digest échoue une fois sur trois. Une seule catégorie porte l'essentiel de l'écart : `programme_industriel`, rappel 5/11, avec des fuites dans toutes les directions (classé `hors_perimetre`, `contrat_armement`, `diplomatie_defense` ou `mouvement_militaire` selon les cas). Le point commun des six items manqués est qu'ils portent sur une **capacité en cours de développement ou de maintien en condition** — demande d'informations préalable à un achat, cible de structure de forces, coopération industrielle, remise en état d'un bâtiment — que le modèle classe d'après l'acteur visible (une armée, deux États, une marine) plutôt que d'après l'objet de l'article. C'est la seule frontière du périmètre pour laquelle §4 n'énonce aucune règle : les erreurs se sont déplacées vers la définition non spécifiée, les deux frontières `diplomatie_defense` traitées après la mesure précédente n'étant plus dominantes.
+
+**Réserves méthodologiques**, dans les deux sens. L'outil d'annotation affiche la réponse du système avant de demander l'étiquette (`backend/eval/annotate.py`) : l'accord mesuré est donc surestimé, mais les désaccords sont d'autant plus solides puisqu'ils sont des infirmations explicites de la réponse montrée. Six items initialement annotés ont par ailleurs été repris à blanc après contrôle de cohérence avec les définitions §4 — quatre ont basculé, deux ont été maintenus ; la mesure avant reprise donnait 69 %. L'échantillon reste petit (n=68, dont 11 items de la catégorie en cause) et repose sur un seul annotateur : la direction du diagnostic est nette, son amplitude ne l'est pas.
+
 Le taux de recoupement est délibérément un indicateur de suivi et non un objectif à maximiser : le pousser artificiellement à la hausse inciterait le système à sur-pondérer les sujets déjà largement couverts au détriment des signaux faibles isolés, ce qui contredirait l'objectif de détection de signal faible.
 
 ## 8. Risques & garde-fous
