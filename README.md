@@ -83,7 +83,8 @@ vigie/
 │   ├── eval/
 │   │   ├── build_sample.py    # échantillon stratifié pour mesurer la précision
 │   │   ├── annotate.py        # annotation manuelle interactive
-│   │   └── score.py           # précision mesurée vs cible (cadrage §7)
+│   │   ├── score.py           # précision mesurée vs cible (cadrage §7)
+│   │   └── candidates.py      # densité de candidats de recoupement, sans appel LLM
 │   ├── memory/
 │   │   ├── store.py           # dédoublonnage + historique analysé (recoupement et digest)
 │   │   └── persistence.py     # fichiers JSON locaux (dev) ou Firestore (prod), même interface
@@ -97,6 +98,8 @@ vigie/
 │   └── src/
 │       ├── components/          # digest filtrable, carte de couverture, vue tableau
 │       └── lib/                 # taxonomie, filtres/tri, résolution des lieux
+├── scripts/
+│   └── daily_run.py             # lancement quotidien + journal de campagne (hors service)
 ├── tests/                       # pytest — LLM et flux RSS mockés
 ├── docs/
 │   ├── cadrage.md               # cadrage produit (problématique, MECE, risques, KPIs)
@@ -131,6 +134,23 @@ npm run dev
 ```
 
 Ouvrir `http://localhost:5173`, puis cliquer sur **Lancer la collecte** (déclenche `POST /run` — pipeline complet, ~5 min, consomme du budget LLM réel). L'URL de l'API est `http://localhost:8080` par défaut, surchargeable via `VITE_API_BASE`.
+
+## Accumulation d'historique
+
+Plusieurs décisions ouvertes — l'extension du vérificateur ([§10](docs/cadrage.md) V2) et les fils d'événements de la V3 — reposent sur une quantité qu'un historique court ne permet pas de mesurer : la proportion d'items ayant, dans l'historique, un voisin traitant du même dossier. Deux dépêches sur un même dossier à 48 h d'écart sont rares par construction ; la mesure n'a de sens que sur plusieurs semaines. Tant que le déclenchement automatique (Cloud Scheduler) n'est pas déployé, le pipeline est lancé une fois par jour à la main :
+
+```bash
+python -m scripts.daily_run              # le lancement quotidien
+python -m scripts.daily_run --dry-run    # état de la campagne, sans consommer de budget
+```
+
+Le script journalise **chaque lancement**, y compris ceux qui ne produisent aucun item neuf et ceux qui échouent. Cette distinction ne se déduit pas de l'historique analysé : un jour sans nouveauté et un jour non lancé y laissent la même trace, alors que le premier est une mesure et le second un trou. `COLLECTION_LOOKBACK_HOURS` (48 h) borne ce qu'une collecte rattrape — un jour sauté est récupéré par le lancement suivant, deux jours consécutifs perdent définitivement les items publiés au-delà de la fenêtre. L'écart depuis le dernier lancement est donc mesuré et signalé à chaque run.
+
+La mesure qu'alimente cette campagne se rejoue ensuite sans aucun appel LLM :
+
+```bash
+python -m backend.eval.candidates
+```
 
 ## Roadmap
 
