@@ -8,4 +8,5 @@ backend/.llm_budget.json
 backend/memory/.seen_items.json
 backend/memory/.analyzed_history.json
 backend/eval/sample.json
+backend/eval/sample-*.json
 scripts/.run_log.jsonl

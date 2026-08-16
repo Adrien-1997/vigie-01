@@ -17,6 +17,8 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from backend.agents.analyst import _clean_text, classify_item
 from backend.agents.collector import collect
 from backend.guardrails import BudgetExceeded, remaining_calls_today
@@ -70,15 +72,21 @@ def main(per_source: int) -> None:
             )
         return
 
-    _archive_existing()
-
     rows = []
     try:
-        for i, item in enumerate(selected):
-            result = classify_item(item)
+        for item in selected:
+            try:
+                result = classify_item(item)
+            except ValidationError:
+                # Même traitement que le nœud analyze (backend/agents/analyst.py) : le modèle peut
+                # renvoyer une catégorie hors énumération sur une source non francophone. L'item est
+                # écarté comme non classable. Le faire remonter perdrait tout l'échantillon déjà
+                # payé — c'est exactement ce qui est arrivé ici avant ce correctif.
+                print(f"  [--] {item['source']} — réponse non validable, écarté — {item['title'][:60]}")
+                continue
             rows.append(
                 {
-                    "id": i,
+                    "id": len(rows),
                     "source": item["source"],
                     "title": item["title"],
                     "text_excerpt": _clean_text(item["raw_text"])[:500],
@@ -88,7 +96,7 @@ def main(per_source: int) -> None:
                     "category_gold": None,
                 }
             )
-            print(f"  [{i}] {item['source']} — {result.category} — {item['title'][:70]}")
+            print(f"  [{len(rows) - 1}] {item['source']} — {result.category} — {item['title'][:70]}")
     except BudgetExceeded:
         # Même règle que dans le pipeline (docs/cadrage.md §8) : un plafond tronque le travail, il
         # ne le détruit pas. Les items déjà classés ont coûté leur appel et restent annotables.
@@ -98,6 +106,9 @@ def main(per_source: int) -> None:
         print("Aucun item classé — rien à écrire.")
         return
 
+    # Archivage ici et non avant la boucle : un run qui échoue en cours de route ne doit pas laisser
+    # d'archive orpheline, puisqu'il n'a rien écrit à remplacer.
+    _archive_existing()
     SAMPLE_FILE.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nÉcrit dans {SAMPLE_FILE} ({len(rows)} items).")
     print("Prochaine étape (dans un terminal interactif) : python -m backend.eval.annotate")
