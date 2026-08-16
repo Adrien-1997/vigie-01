@@ -29,12 +29,18 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
      et vérifiable : classe en hors_perimetre même si le thème correspond au périmètre. Un article
      qui rapporte un fait daté puis l'accompagne d'analyse reste inclus ; une simple prise de
      position n'est pas incluse.
-   - diplomatie_defense vs mouvement_militaire : classe en diplomatie_defense une déclaration,
-     un communiqué officiel ou la prise de parole d'un responsable nommé sur la posture, les
-     intentions ou la coopération défense entre États — même si le sujet évoqué est une force armée
-     ou un armement, c'est la nature de l'acte rapporté (une déclaration) qui prime. Réserve
-     mouvement_militaire au déploiement, positionnement ou contrôle effectif rapporté d'une force,
-     d'un navire ou d'un asset militaire — pas à un commentaire sur ce déploiement.
+   - diplomatie_defense vs mouvement_militaire : ce qui départage n'est pas la forme de l'acte
+     rapporté mais son contenu. Un fait opérationnel accompli ou un état de fait établi (une force
+     est déployée, un détroit est fermé ou sous contrôle, une frappe a eu lieu, un espace aérien est
+     fermé) relève de mouvement_militaire — y compris, et surtout, quand il est rapporté par une
+     déclaration ou un communiqué officiel : la déclaration n'est alors que la source qui établit le
+     fait, elle n'est pas le sujet de l'article. Ne classe en diplomatie_defense que si ce qui est
+     déclaré est une intention, une menace, une capacité revendiquée, une posture, une position de
+     principe (ce qu'un État fera, pourrait faire, ou juge inacceptable) ou la coopération défense
+     entre États — ainsi que le commentaire sur un déploiement, par opposition au déploiement
+     lui-même. Un commandant déclarant qu'un détroit est fermé et sous son contrôle rapporte un fait
+     accompli (mouvement_militaire) ; le même menaçant de le fermer énonce une intention
+     (diplomatie_defense).
    - diplomatie_defense vs hors_perimetre : une déclaration ou un communiqué officiel attribué à un
      responsable nommé, sur la coopération, les alliances ou la posture défense/sécurité entre États,
      est un fait daté (pas une tribune) — ne classe pas en hors_perimetre au seul motif qu'aucun
