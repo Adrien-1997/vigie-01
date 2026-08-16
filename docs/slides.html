@@ -584,8 +584,9 @@
         <li><strong class="mark">Garde-fou déclaré, non câblé.</strong> Le plafond d'appels LLM/jour existait dans la config sans être vérifié nulle part dans le code. Trouvé par auto-audit, corrigé, testé dans les deux sens.</li>
         <li><strong class="mark">Précision auto-questionnée.</strong> 27/30 d'accord avec l'annotation manuelle, au-dessus de la cible — retenu seulement après avoir requestionné l'annotation elle-même, ce qui a révélé des définitions de catégorie ambiguës plutôt qu'un défaut du classifieur.</li>
         <li><strong class="mark">Deuxième mesure, plus sévère.</strong> Après la reprise des sources : 73/88 (83 %), sous la cible. Le protocole d'annotation comportait lui-même un biais — documenté dans le cadrage plutôt que le chiffre présenté comme acquis.</li>
+        <li><strong class="mark">Troisième mesure, décomposée.</strong> 51/68 (75 %) sur un échantillon reconstruit. Le global était le moins informatif : le tri du bruit tient la cible (85 %), la qualification de ce qui parvient au digest échoue une fois sur trois (64 %). Deux problèmes distincts qu'un chiffre unique confondait.</li>
       </ul>
-      <p class="muted-note" style="margin-top:6px">Une mesure de précision teste autant la clarté des définitions que la qualité du modèle. Les deux s'auditent ensemble.</p>
+      <p class="muted-note" style="margin-top:6px">Une mesure de précision teste autant la clarté des définitions que la qualité du modèle. Les deux s'auditent ensemble — la troisième mesure a fait ressortir la seule frontière de catégorie que le cadrage n'avait jamais spécifiée.</p>
     </div>
   </section>
 
