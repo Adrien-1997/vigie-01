@@ -139,7 +139,12 @@ Ouvrir `http://localhost:5173`, puis cliquer sur **Lancer la collecte** (déclen
 - [ ] V1 — déploiement Cloud Run + Cloud Scheduler
 - [~] V2 — agent vérificateur : recoupement et score de confiance livrés sur les catégories sensibles ; extension aux autres catégories et `fetch_full_article` à venir
 - [~] V2 — carte de couverture interactive livrée (filtrage par pays depuis le champ `location`) ; sectorisation par thème à venir
-- [ ] V3 — mémoire interrogeable sur l'historique (requêtes en langage naturel)
+- [ ] V3 — raisonnement longitudinal sur l'historique : le pipeline actuel traite chaque item isolément, alors qu'une part du signal se situe entre les items (un dossier qui évolue, la fréquence d'un pays qui monte). Cinq tranches séquencées, cadrées en [§10](docs/cadrage.md) :
+  - [ ] fils d'événements — regrouper les items d'un même dossier en fil chronologique
+  - [ ] brief hebdomadaire — tendances de volume par catégorie/pays vs semaine précédente, chiffres issus d'une agrégation et non du modèle
+  - [ ] détection de signal faible — concentration inhabituelle d'items corroborés sur un couple pays/catégorie
+  - [ ] restitution temporelle — axe de temps des séries de volume, distinct du fil par dossier
+  - [ ] mémoire interrogeable (requêtes en langage naturel)
 
 ## Métriques de suivi
 
