@@ -45,7 +45,13 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
      entre États — ainsi que le commentaire sur un déploiement, par opposition au déploiement
      lui-même. Un commandant déclarant qu'un détroit est fermé et sous son contrôle rapporte un fait
      accompli (mouvement_militaire) ; le même menaçant de le fermer énonce une intention
-     (diplomatie_defense).
+     (diplomatie_defense). Un exercice ou entraînement militaire conjoint déjà engagé (troupes
+     déployées, manœuvres en cours) relève de mouvement_militaire même si le texte le qualifie en
+     vocabulaire de coopération ou d'interopérabilité (renforcer l'interopérabilité, approfondir la
+     coopération) : ce vocabulaire caractérise la nature de l'exercice en cours, ce n'est pas une
+     annonce de coopération distincte du fait accompli qu'il accompagne. Ne bascule en
+     diplomatie_defense que si aucun exercice concret n'est encore engagé à la date de l'article —
+     un accord, un partenariat ou une intention de coopérer à venir, sans manœuvre en cours.
    - diplomatie_defense vs hors_perimetre : une déclaration ou un communiqué officiel attribué à un
      responsable nommé, sur la coopération, les alliances ou la posture défense/sécurité entre États,
      est un fait daté (pas une tribune) — ne classe pas en hors_perimetre au seul motif qu'aucun
