@@ -41,6 +41,7 @@ Usage :
 
 import argparse
 import json
+import sys
 import time
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
@@ -217,6 +218,11 @@ def main(dry_run: bool) -> int:
 
 
 if __name__ == "__main__":
+    # La console Windows par défaut (cp1252) n'a pas « → » ; le journal et les sorties d'exploitation
+    # sont en français avec ce genre de caractère, pas question de les appauvrir pour ce seul terminal.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--dry-run",
