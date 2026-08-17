@@ -10,3 +10,5 @@ backend/memory/.analyzed_history.json
 backend/eval/sample.json
 backend/eval/sample-*.json
 scripts/.run_log.jsonl
+scripts/retest_point36.py
+scripts/.retest_point36_result.json
