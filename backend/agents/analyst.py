@@ -1,9 +1,11 @@
 """Nœud analyste : classification + résumé tracé (cf. docs/cadrage.md §2 et §8)."""
 
+import difflib
 import html
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import get_args
 
 from langchain_anthropic import ChatAnthropic
 from pydantic import BaseModel, Field, ValidationError
@@ -19,7 +21,10 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
    diplomatie_defense, programme_industriel, ou hors_perimetre si l'article ne relève d'aucune
    de ces catégories (ex. actualité technologique générale, cybersécurité, analyse financière).
    Le filtrage est thématique uniquement — la localisation géographique de l'article n'entre pas
-   en compte dans ce choix. Précisions de frontière :
+   en compte dans ce choix. Ces six identifiants sont un vocabulaire fermé, écrit exactement comme
+   ci-dessus : ne les traduis jamais, ne les fléchis jamais dans la langue de l'article — même
+   pour un article en espagnol, en allemand, en italien ou en français, réponds `diplomatie_defense`
+   et non `diplomacia_defense` ou toute autre variante. Précisions de frontière :
    - Fusion-acquisition ou prise de participation dans l'industrie de défense : classe en
      programme_industriel si l'article porte sur l'opération elle-même (parties, montant, enjeu
      stratégique) ; en export_control seulement si l'article traite explicitement d'une licence,
@@ -48,6 +53,23 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
      une pression diplomatique générale (droits humains, politique intérieure d'un pays tiers) sans
      contenu défense/sécurité explicite reste hors_perimetre même si les deux pays ont par ailleurs
      une relation de défense.
+   - programme_industriel vs les trois autres catégories : ce qui définit programme_industriel est
+     le stade de constitution d'une capacité — développement, étude ou consultation préalable à un
+     achat, cible de structure de forces, coopération industrielle entre programmes, remise en état
+     ou modernisation d'un équipement existant — quel que soit l'acteur qui la porte (une armée, un
+     ministère, deux États conjointement). Classe d'après l'objet de l'article — une capacité en
+     construction — jamais d'après l'acteur visible : une demande d'informations préalable à un
+     achat émise par une marine reste programme_industriel, pas mouvement_militaire, et une
+     coopération industrielle entre deux États reste programme_industriel, pas diplomatie_defense.
+     Distinction par stade avec contrat_armement : un contrat signé, un accord-cadre conclu ou une
+     livraison relèvent de contrat_armement ; une intention d'achat, une consultation ou une étude
+     préalable relèvent de programme_industriel. Distinction avec mouvement_militaire : l'emploi
+     opérationnel d'une capacité déjà existante (déploiement, exercice, frappe) n'est pas sa
+     constitution. Distinction avec diplomatie_defense : dès qu'un programme, un équipement ou une
+     force conjointe nommés sont en cours de constitution, la catégorie est programme_industriel
+     même si l'article rapporte l'annonce par la voie d'une déclaration officielle — une force
+     multinationale en cours de constitution (ex. une task force conjointe) relève de
+     programme_industriel, pas de diplomatie_defense, tant qu'elle se constitue.
 2. Traduis le titre en français (title_fr), fidèlement, même si le titre original est déjà en français.
 3. Rédige un résumé factuel en français, 2-3 phrases maximum, sans interprétation ni spéculation.
 4. Fournis une citation : un extrait VERBATIM du texte source, dans sa langue d'origine (copié-collé
@@ -129,12 +151,38 @@ _SOURCE_COUNTRY_NAME: dict[str, str] = {
     "KP": "North Korea",
 }
 
+_KNOWN_CATEGORIES: tuple[str, ...] = get_args(Category)
+
+
+def _normalize_category(value: str) -> str:
+    """Répare une quasi-correspondance de catégorie plutôt qu'une variante inconnue.
+
+    Vu en conditions réelles sur une source hispanophone : le modèle a répondu
+    `diplomacia_defense`, l'inflexion espagnole de `diplomatie_defense`, malgré la consigne du
+    prompt (les identifiants sont un vocabulaire fermé). Un filet, pas une contrainte dure : ne
+    corrige que si un candidat domine nettement les cinq autres catégories, pour ne jamais faire
+    basculer un item d'une vraie catégorie vers une autre par accident — calibré sur les six
+    identifiants (aucune paire ne dépasse un score de 0.55 entre elles), la marge ci-dessous ne
+    peut donc pas confondre deux catégories réelles, seulement rattraper une variante de langue.
+    """
+    if value in _KNOWN_CATEGORIES:
+        return value
+    scored = sorted(
+        ((difflib.SequenceMatcher(None, value, c).ratio(), c) for c in _KNOWN_CATEGORIES),
+        reverse=True,
+    )
+    best_score, best = scored[0]
+    runner_up_score = scored[1][0]
+    if best_score >= 0.7 and best_score - runner_up_score >= 0.2:
+        return best
+    return value
+
 
 def classify_item(item: RawItem) -> _Analysis:
     """Appelle le LLM pour un item, sans filtrage. Réutilisé par analyze() et par l'éval (backend/eval/)."""
     global _llm
     if _llm is None:
-        _llm = ChatAnthropic(model=MODEL, temperature=0).with_structured_output(_Analysis)
+        _llm = ChatAnthropic(model=MODEL, temperature=0).with_structured_output(_Analysis, include_raw=True)
 
     clean_text = _clean_text(item["raw_text"])
     # Le pays de la source n'est donné que pour la question 7. Il est placé en tête et nommé comme
@@ -142,7 +190,7 @@ def classify_item(item: RawItem) -> _Analysis:
     # une source russe couvrant l'Ukraine ne doit pas se mettre à produire « Russia ».
     origin = _SOURCE_COUNTRY_NAME.get(item["country"], "an international or multi-country outlet")
     check_and_increment_llm_call()
-    return _llm.invoke(
+    result = _llm.invoke(
         [
             ("system", SYSTEM_PROMPT),
             (
@@ -152,6 +200,22 @@ def classify_item(item: RawItem) -> _Analysis:
             ),
         ]
     )
+    if result["parsed"] is not None:
+        return result["parsed"]
+
+    # Échec de validation : avant d'abandonner (comme avant ce correctif), on tente de réparer la
+    # catégorie sur les arguments bruts de l'appel d'outil — la seule classe d'échec de validation
+    # rencontrée en conditions réelles jusqu'ici, cf. `_normalize_category`. Un item vraiment mal
+    # formé (champ requis manquant) échoue de la même façon qu'avant : `_Analysis(**args)` relève
+    # alors la même ValidationError, propagée à l'appelant sans traitement spécial.
+    tool_calls = getattr(result["raw"], "tool_calls", None) or []
+    if tool_calls and isinstance(tool_calls[0].get("args"), dict):
+        args = tool_calls[0]["args"]
+        if isinstance(args.get("category"), str):
+            args = {**args, "category": _normalize_category(args["category"])}
+        return _Analysis(**args)
+
+    raise result["parsing_error"] or ValueError("réponse structurée sans tool_call exploitable")
 
 
 @dataclass
@@ -199,12 +263,16 @@ def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[An
             progress.submitted.pop()
             progress.truncated = True
             return
-        except ValidationError:
+        except (ValidationError, ValueError):
             # Le modèle peut renvoyer une catégorie hors énumération — vu en conditions réelles sur
             # une source hispanophone (« diplomacia_defense » au lieu de « diplomatie_defense »).
-            # Un item mal formé se traite comme un item non classable : on l'écarte, comme un résumé
-            # sans citation vérifiable. Le faire remonter ferait perdre tout le run, y compris les
-            # items déjà analysés avant lui — un coût sans rapport avec celui d'un item raté.
+            # `classify_item` tente déjà de réparer ce cas précis (`_normalize_category`) ; ce
+            # `except` couvre ce qui reste après cette réparation — variante non reconnue, champ
+            # requis manquant, ou l'absence totale de tool_call que `classify_item` remonte en
+            # `ValueError` faute d'exception de parsing à propager. Un item mal formé se traite comme
+            # un item non classable : on l'écarte, comme un résumé sans citation vérifiable. Le faire
+            # remonter ferait perdre tout le run, y compris les items déjà analysés avant lui — un
+            # coût sans rapport avec celui d'un item raté.
             # L'appel LLM a bien eu lieu : le budget (§8) est décompté, ici comme ailleurs.
             continue
         clean_text = _clean_text(item["raw_text"])

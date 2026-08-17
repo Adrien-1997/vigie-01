@@ -16,6 +16,11 @@ class Source:
     theme: str  # export_control | contrats | mouvements | diplomatie | programmes
     country: str  # code pays ISO 3166-1 alpha-2, ou "INT" pour une source multi-pays/institutionnelle UE
     state_affiliated: bool = False  # média d'État ou lié à un service officiel — cf. docs/cadrage.md §4
+    # Override de MAX_ITEMS_PER_SOURCE_PER_RUN. Réservé aux flux généralistes (agence de presse
+    # nationale, pas de rédaction défense dédiée) dont le ratio appels LLM / item retenu mesuré sur
+    # échantillon annoté est nettement pire que la moyenne (cf. docs/cadrage.md §7) : le plafond par
+    # défaut suffit à border le coût, mais pas à corriger un rendement structurellement mauvais.
+    max_per_run: int | None = None
 
 
 # Sources vérifiées manuellement (feed RSS testé en direct au 2026-08-14, cf. docs/cadrage.md §4).
@@ -26,7 +31,19 @@ SOURCES: list[Source] = [
     # États-Unis (43% des exports mondiaux)
     Source("Breaking Defense", "https://feeds.feedburner.com/breakingdefense", "en", "programmes", "US"),
     Source("Defense News", "https://www.defensenews.com/arc/outboundfeeds/rss/", "en", "contrats", "US"),
-    Source("OFAC (US Treasury)", "https://ofac.treasury.gov/rss.xml", "en", "export_control", "US"),
+    # OFAC (Treasury) retiré le 2026-08-17 : flux mort depuis plus d'un an au moment du constat
+    # (dernière entrée 2025-07-01), comptait comme source "active" dans le KPI de couverture (§7)
+    # sans produire un seul item — remplacé par le Bureau of Industry and Security (Federal
+    # Register), qui administre les Export Administration Regulations, cible plus directe du
+    # périmètre export_control que le Treasury pour ce produit.
+    Source(
+        "Federal Register – BIS (export control)",
+        "https://www.federalregister.gov/api/v1/documents.rss"
+        "?conditions%5Bagencies%5D%5B%5D=industry-and-security-bureau",
+        "en",
+        "export_control",
+        "US",
+    ),
     Source(
         "Defense.gov (DoD)",
         "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945",
@@ -34,13 +51,20 @@ SOURCES: list[Source] = [
         "mouvements",
         "US",
     ),
+    # Ajouté le 2026-08-17 : presse spécialisée navale, en renfort du volume US (le flux le plus
+    # massivement exportateur du périmètre n'avait, avant ce correctif, aucune source active dans
+    # une fenêtre de collecte de 48 h — cf. correctif de la fenêtre ci-dessous).
+    Source("Naval News", "https://www.navalnews.com/feed/", "en", "mouvements", "US"),
     # France (9.6%)
     Source("Opex360", "https://opex360.com/feed/", "fr", "mouvements", "FR"),
     Source("Bruxelles2", "https://bruxelles2.eu/api/rss.xml", "fr", "diplomatie", "INT"),
     # Russie (7.8%, en forte baisse) — pas de presse indépendante accessible, TASS = média d'État
     Source("TASS", "https://tass.com/rss/v2.xml", "en", "mouvements", "RU", state_affiliated=True),
     # Chine (5.9%) — pas de presse indépendante accessible, CGTN = média d'État ; feed généraliste
-    # Chine (pas de flux spécifique défense trouvé), taux de hors_perimetre attendu plus élevé
+    # Chine (pas de flux spécifique défense trouvé). max_per_run réduit le 2026-08-17 : sur
+    # échantillon annoté (n=6), 6/6 hors_perimetre — aucun item retenu pour ~12 appels/jour au
+    # plafond par défaut. Pas retiré (seule couverture Chine disponible gratuitement, §4), mais
+    # plafonné au coût que ce rendement justifie.
     Source(
         "CGTN (Chine, généraliste)",
         "https://www.cgtn.com/subscribe/rss/section/china.xml",
@@ -48,6 +72,7 @@ SOURCES: list[Source] = [
         "mouvements",
         "CN",
         state_affiliated=True,
+        max_per_run=5,
     ),
     # Allemagne (5.6%)
     Source("Hartpunkt", "https://www.hartpunkt.de/feed/", "de", "programmes", "DE"),
@@ -56,18 +81,22 @@ SOURCES: list[Source] = [
     Source("Analisi Difesa", "https://www.analisidifesa.it/feed/", "it", "programmes", "IT"),
     # Royaume-Uni (3.6%)
     Source("UK Defence Journal", "https://ukdefencejournal.org.uk/feed/", "en", "programmes", "GB"),
-    # Israël (3.1%) — pas de flux SIBAT/MOD trouvé, presse généraliste filtrée en aval par le LLM
+    # Israël (3.1%) — pas de flux SIBAT/MOD trouvé, presse généraliste filtrée en aval par le LLM.
+    # max_per_run réduit le 2026-08-17 : 5/6 hors_perimetre sur échantillon annoté.
     Source(
         "Jerusalem Post (généraliste)",
         "https://www.jpost.com/rss/rssfeedsfrontpage.aspx",
         "en",
         "diplomatie",
         "IL",
+        max_per_run=8,
     ),
     # Espagne (3.0%, +29%)
     Source("Infodefensa", "https://www.infodefensa.com/feed/all", "es", "contrats", "ES"),
-    # Corée du Sud (2.2%) — pas de flux DAPA trouvé, dépêches Yonhap généralistes filtrées en aval
-    Source("Yonhap (généraliste)", "https://en.yna.co.kr/RSS/national.xml", "en", "mouvements", "KR"),
+    # Corée du Sud (2.2%) — pas de flux DAPA trouvé, dépêches Yonhap généralistes filtrées en aval.
+    # max_per_run réduit le 2026-08-17 : 4/6 hors_perimetre sur échantillon annoté, plus haut volume
+    # brut du périmètre après TASS.
+    Source("Yonhap (généraliste)", "https://en.yna.co.kr/RSS/national.xml", "en", "mouvements", "KR", max_per_run=8),
     # Iran — hors top 10 SIPRI (0.4%, +749% quasi exclusivement vers la Russie), couverture
     # export_control ; Mehr News est un média semi-officiel (gouvernemental)
     Source(
@@ -107,7 +136,22 @@ FIRESTORE_DATABASE = os.getenv("FIRESTORE_DATABASE", "(default)")
 # pagination par date — sans ce filtre, un premier run (ou un run après une coupure) soumettrait
 # tout l'historique au budget LLM quotidien d'un coup. Item sans date publiée/parsable : conservé
 # par prudence, le garde-fou MAX_LLM_CALLS_PER_DAY reste le filet de sécurité final.
-COLLECTION_LOOKBACK_HOURS = 48
+#
+# Relevé de 48 h à 96 h le 2026-08-17 : mesuré en direct, les quatre sources américaines (43 % des
+# exportations mondiales, cf. §4) tombaient hors de la fenêtre à 48 h un jour sur deux — cadence de
+# publication plus lente que les flux d'agence de presse qui dominent le volume (TASS, Yonhap).
+# Ce risque de coût que 48 h existait pour couvrir est désormais porté par
+# MAX_ITEMS_PER_SOURCE_PER_RUN, qui borne directement le nombre d'items par flux au lieu de le
+# borner indirectement par le temps — élargir la fenêtre ne coûte donc plus rien en budget.
+COLLECTION_LOOKBACK_HOURS = 96
+
+# Plafond du nombre d'items retenus par source à chaque run (backend/agents/collector.py), au-delà
+# de MAX_LLM_CALLS_PER_DAY qui reste le filet de sécurité global. Ajouté le 2026-08-17 : sans lui,
+# un flux d'agence de presse à cadence élevée (TASS, ~45 items/jour dans la fenêtre 48 h mesurée)
+# consommait le budget quotidien à lui seul, au détriment des flux spécialisés à faible volume mais
+# à fort signal — le coût était alloué par ce que chaque flux publie, pas par sa valeur pour la
+# veille. Les items les plus récents de chaque source sont conservés en priorité.
+MAX_ITEMS_PER_SOURCE_PER_RUN = 12
 
 # Garde-fous obligatoires (cf. docs/cadrage.md §7) — pas de valeur par défaut :
 # une config incomplète doit échouer au démarrage plutôt que tourner sans plafond.

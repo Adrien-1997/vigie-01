@@ -77,11 +77,13 @@ def main(per_source: int) -> None:
         for item in selected:
             try:
                 result = classify_item(item)
-            except ValidationError:
+            except (ValidationError, ValueError):
                 # Même traitement que le nœud analyze (backend/agents/analyst.py) : le modèle peut
-                # renvoyer une catégorie hors énumération sur une source non francophone. L'item est
-                # écarté comme non classable. Le faire remonter perdrait tout l'échantillon déjà
-                # payé — c'est exactement ce qui est arrivé ici avant ce correctif.
+                # renvoyer une catégorie hors énumération sur une source non francophone — classify_item
+                # tente une réparation (_normalize_category) puis relève ValidationError ou ValueError
+                # si elle échoue. L'item est écarté comme non classable. Le faire remonter perdrait
+                # tout l'échantillon déjà payé — c'est exactement ce qui est arrivé ici avant ce
+                # correctif.
                 print(f"  [--] {item['source']} — réponse non validable, écarté — {item['title'][:60]}")
                 continue
             rows.append(

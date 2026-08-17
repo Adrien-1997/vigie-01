@@ -20,11 +20,13 @@ la campagne au moment de décider : un historique clairsemé parce que le corpus
 pas la même conclusion qu'un historique clairsemé parce que l'opérateur a sauté quatre jours. Le
 journal enregistre donc *tout lancement*, y compris ceux qui ne produisent rien et ceux qui échouent.
 
-**Fenêtre de collecte et trous irrécupérables.** `COLLECTION_LOOKBACK_HOURS` (48 h) borne ce qu'une
-collecte peut rattraper. Un jour sauté est donc récupéré par le lancement suivant ; deux jours
-consécutifs sautés perdent définitivement les items publiés au-delà de la fenêtre. Le script mesure
-l'écart depuis le dernier lancement journalisé et le signale — l'information n'est utile qu'au
-moment où elle est constatée, et elle doit rester attachée au run dans le journal.
+**Fenêtre de collecte et trous irrécupérables.** `COLLECTION_LOOKBACK_HOURS` (96 h depuis le
+2026-08-17 ; 48 h à l'origine, relevé une fois le coût couvert par un plafond par source plutôt
+que par le temps — cf. backend/config.py) borne ce qu'une collecte peut rattraper. Un jour sauté
+est donc récupéré par le lancement suivant ; des jours consécutifs sautés au-delà de cette fenêtre
+perdent définitivement les items publiés dans l'intervalle non couvert. Le script mesure l'écart
+depuis le dernier lancement journalisé et le signale — l'information n'est utile qu'au moment où
+elle est constatée, et elle doit rester attachée au run dans le journal.
 
 **Pourquoi le journal ne passe pas par backend/memory/persistence.py.** L'invariant du projet
 (CLAUDE.md) est que tout *état métier* survivant à un run passe par la couche de persistance. Ce
@@ -44,7 +46,8 @@ from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from backend.config import COLLECTION_LOOKBACK_HOURS, MAX_LLM_CALLS_PER_DAY
+from backend.agents.collector import source_freshness
+from backend.config import COLLECTION_LOOKBACK_HOURS, MAX_LLM_CALLS_PER_DAY, SOURCES
 from backend.graph import run_pipeline
 from backend.guardrails import remaining_calls_today
 from backend.memory.persistence import get_persistence
@@ -124,6 +127,17 @@ def main(dry_run: bool) -> int:
         f"sur {len(by_date_before)} jour{_s(len(by_date_before))} — {by_date_before}"
     )
 
+    # « Active » veut dire « a produit un item récent », pas « le flux se parse sans erreur » —
+    # un flux mort (OFAC, ~1 an sans nouvelle entrée avant d'être détecté par ce constat) passait
+    # inaperçu du KPI de couverture (docs/cadrage.md §7) tant que le test était le second. Lecture
+    # RSS seule, aucun coût de budget.
+    freshness = source_freshness()
+    silent = sorted(name for name, count in freshness.items() if count == 0)
+    active_count = len(SOURCES) - len(silent)
+    print(f"Couverture : {active_count}/{len(SOURCES)} sources actives dans les {COLLECTION_LOOKBACK_HOURS} h.")
+    if silent:
+        print(f"  Silencieuse{_s(len(silent))} : {', '.join(silent)}")
+
     if gap_hours is None:
         print("Aucun lancement journalisé auparavant : début de campagne.")
     else:
@@ -177,6 +191,9 @@ def main(dry_run: bool) -> int:
         "history_by_date": by_date_after,
         "gap_hours": round(gap_hours, 1) if gap_hours is not None else None,
         "lookback_exceeded": gap_hours is not None and gap_hours > COLLECTION_LOOKBACK_HOURS,
+        "sources_active": active_count,
+        "sources_targeted": len(SOURCES),
+        "sources_silent": silent,
         "error": error,
     }
     _append_log(entry)

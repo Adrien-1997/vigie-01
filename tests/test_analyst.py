@@ -224,6 +224,61 @@ def test_analyze_ignores_domestic_when_a_location_was_extracted(monkeypatch):
     assert result["analyzed_items"][0]["domestic_to_source"] is False
 
 
+def test_normalize_category_repairs_the_spanish_inflection_seen_in_production():
+    # Constaté en conditions réelles sur Infodefensa (source hispanophone) : le modèle a répondu
+    # « diplomacia_defense » au lieu de « diplomatie_defense », malgré la consigne du prompt.
+    assert analyst._normalize_category("diplomacia_defense") == "diplomatie_defense"
+
+
+def test_normalize_category_leaves_unrelated_strings_untouched():
+    # Pas de faux positif : une chaîne qui ne ressemble à aucune catégorie reste inchangée, pour que
+    # la validation Pydantic la rejette normalement plutôt que de la faire basculer au hasard.
+    assert analyst._normalize_category("cybersecurite") == "cybersecurite"
+
+
+def test_classify_item_repairs_an_out_of_enum_category_from_the_raw_tool_call(monkeypatch):
+    """La structure include_raw expose les arguments bruts de l'appel d'outil même quand la
+    validation Pydantic échoue — classify_item doit s'en servir pour réparer la catégorie avant
+    d'abandonner, plutôt que de perdre l'item comme avant ce correctif."""
+
+    class _FakeRaw:
+        tool_calls = [
+            {
+                "args": {
+                    "category": "diplomacia_defense",
+                    "title_fr": "Titre",
+                    "summary": "Résumé",
+                    "citation": "el hecho",
+                    "location": "",
+                    "location_country": "",
+                    "domestic": False,
+                }
+            }
+        ]
+
+    class _FakeLLM:
+        def invoke(self, messages):
+            return {"raw": _FakeRaw(), "parsed": None, "parsing_error": None}
+
+    monkeypatch.setattr(analyst, "_llm", _FakeLLM())
+    monkeypatch.setattr(analyst, "check_and_increment_llm_call", lambda: None)
+
+    result = analyst.classify_item(
+        {
+            "source": "s",
+            "lang": "es",
+            "country": "ES",
+            "state_affiliated": False,
+            "title": "titre",
+            "link": "l",
+            "published": "",
+            "raw_text": "texto",
+        }
+    )
+
+    assert result.category == "diplomatie_defense"
+
+
 def test_analyze_refuses_domestic_presumption_for_international_sources(monkeypatch):
     # "INT" désigne une source multi-pays ou institutionnelle UE : elle n'a pas de pays
     # d'origine, il n'y a donc rien à présumer.
