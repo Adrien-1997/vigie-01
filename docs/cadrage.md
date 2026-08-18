@@ -74,6 +74,8 @@ Trois flux généralistes (agence de presse nationale, pas de rédaction défens
 
 OFAC (US Treasury), seule source `export_control` américaine, s'est révélée morte depuis plus d'un an au moment du constat (dernière entrée 2025-07-01) sans qu'aucun contrôle existant ne le détecte — un flux qui se parse sans erreur comptait comme « source active » pour le KPI de couverture (§7) sans produire un seul item. Remplacée par le Bureau of Industry and Security (Federal Register), qui administre les Export Administration Regulations — cible plus directe du périmètre que le Treasury. Naval News (presse spécialisée navale) ajoutée en renfort du volume américain. Le KPI de couverture est corrigé en conséquence (§7) : « active » signifie désormais « a produit un item récent », mesuré à chaque lancement de la campagne (`scripts/daily_run.py`) sans attendre la revue annuelle de la liste, pas « le flux se parse sans erreur ».
 
+**Correctif du 2026-08-18 : quatrième flux plafonné.** Le correctif ci-dessus n'avait mesuré que trois flux généralistes ; en relisant le même échantillon annoté (n=68) pour préparer la campagne d'accumulation, Mehr News affichait 5/6 items `hors_perimetre` — identique au ratio de Jerusalem Post — sans avoir reçu de plafond réduit, et écartait ce jour-là 18 items/96 h au plafond par défaut. Corrigé par la même règle (plafonné à 8, comme Jerusalem Post) plutôt que rouverte : le ratio mesuré est celui déjà utilisé pour les trois autres flux, pas un nouveau seuil.
+
 #### Révision : filtrage géographique retiré du critère de collecte
 
 Version initiale du cadrage : périmètre restreint à la zone Atlantique-Méditerranée, appliqué comme

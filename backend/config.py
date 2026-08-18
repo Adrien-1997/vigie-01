@@ -98,7 +98,11 @@ SOURCES: list[Source] = [
     # brut du périmètre après TASS.
     Source("Yonhap (généraliste)", "https://en.yna.co.kr/RSS/national.xml", "en", "mouvements", "KR", max_per_run=8),
     # Iran — hors top 10 SIPRI (0.4%, +749% quasi exclusivement vers la Russie), couverture
-    # export_control ; Mehr News est un média semi-officiel (gouvernemental)
+    # export_control ; Mehr News est un média semi-officiel (gouvernemental). max_per_run ajouté
+    # le 2026-08-18 : 5/6 hors_perimetre sur l'échantillon annoté du §7 (n=68) — même ratio que
+    # Jerusalem Post, manqué lors du correctif du 2026-08-17 qui n'avait couvert que trois flux.
+    # Pas retirée (seule couverture Iran disponible gratuitement, §4), mais plafonnée au rendement
+    # qu'elle démontre.
     Source(
         "Mehr News (Iran)",
         "https://en.mehrnews.com/rss",
@@ -106,6 +110,7 @@ SOURCES: list[Source] = [
         "export_control",
         "IR",
         state_affiliated=True,
+        max_per_run=8,
     ),
     # Corée du Nord — hors classement SIPRI, transferts sous embargo vers la Russie ; NK News agrège
     # les médias d'État nord-coréens (KCNA), seule source practicable identifiée
