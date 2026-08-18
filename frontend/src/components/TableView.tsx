@@ -46,7 +46,9 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
             <th scope="col">Titre</th>
             <th scope="col">Source</th>
             <th scope="col">Lieu</th>
-            <th scope="col">Confiance</th>
+            <th scope="col" title="Score de confiance du vérificateur — aide à la priorisation, pas une garantie de véracité.">
+              Confiance
+            </th>
             <th scope="col">Antécédent</th>
           </tr>
         </thead>
