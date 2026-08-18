@@ -14,7 +14,9 @@ Le stockage (fichiers locaux en dev, Firestore en production) est derrière
 backend/memory/persistence.py.
 """
 
+import math
 import re
+from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 
 from backend.state import AnalyzedItem, RawItem, VeilleState
@@ -146,11 +148,65 @@ def _tokenize(text: str) -> set[str]:
     return {tok for tok in re.findall(r"\w+", text.lower()) if len(tok) > 2}
 
 
+def _record_tokens(record: dict) -> set[str]:
+    return _tokenize(record.get("title_fr", "")) | _tokenize(record.get("summary", ""))
+
+
+def _document_frequencies(records: list[dict]) -> Counter[str]:
+    """Nombre d'items de la fenêtre contenant chaque token.
+
+    Calculé sur la fenêtre entière, y compris les items que l'appelant exclura du classement
+    (lot courant, item lui-même) : ce sont des statistiques de corpus, et les faire dépendre du
+    lot du jour ferait varier le poids d'un mot d'un run à l'autre.
+    """
+    df: Counter[str] = Counter()
+    for record in records:
+        df.update(_record_tokens(record))
+    return df
+
+
+def _overlap_score(query_tokens: set[str], record_tokens: set[str], df: Counter[str], total: int) -> float:
+    """Chevauchement de mots-clés pondéré par la rareté du mot dans l'historique (IDF).
+
+    Le comptage brut qui précédait était dominé par les mots vides : mesuré sur 199 items réels,
+    88 % des paires d'items avaient un chevauchement non nul, et 64 % du score était porté par des
+    tokens présents dans plus d'un cinquième du corpus (« les », « des », « pour », « dans »).
+    L'ordre des cinq candidats servis au modèle était donc en bonne part du bruit.
+
+    log(total / df) plutôt qu'une liste de mots vides : le poids se dérive du corpus au lieu d'être
+    curé à la main, ce qui écarte aussi les mots vides *du domaine* (« défense », « drones »,
+    « selon ») qu'aucune liste générique ne couvrirait, et n'introduit aucun seuil à calibrer.
+
+    Portée mesurée, à ne pas surestimer : la pondération corrige le *classement* (un tiers des
+    candidats servis au modèle change, 328 évictions sur 89 des 199 items), pas le portillon
+    d'escalade de backend/agents/threader.py, qui reste franchi par 100 % des items avant comme
+    après — sa requête est le titre et le résumé entiers de l'item, assez longs pour partager un
+    token rare avec au moins un des 199 enregistrements quelle que soit la pondération. Rendre ce
+    portillon discriminant demanderait un seuil sur le score, donc un corpus permettant de le
+    régler (cf. backend/eval/candidates.py) : ce n'est pas ce que fait cette fonction.
+
+    Sous trois items, la pondération est dégénérée, et la borne se dérive plutôt que se règle : un
+    token partagé par un item et une requête issue d'un autre item a `df >= 2`, donc dans une
+    fenêtre de deux items tout token partagé a `df == total` et un poids nul — la pondération ne
+    peut alors rien classer. On retombe sur le comptage brut, faute de corpus sur lequel mesurer
+    une rareté. Le portillon se resserre donc à mesure que l'historique grandit, ce qui est le sens
+    souhaité, et le cas canonique du thread (deux sources du même run sur le même dossier, cf.
+    tests/test_threader.py) reste couvert quand l'historique est encore vide.
+    """
+    shared = query_tokens & record_tokens
+    if total < 3:
+        return float(len(shared))
+    return sum(math.log(total / df[tok]) for tok in shared)
+
+
 def search_related(query: str, exclude_links: set[str], limit: int = 5) -> list[dict]:
-    """Recherche naïve par chevauchement de mots-clés dans l'historique (§10 V2, backend/agents/verifier.py).
+    """Recherche par chevauchement de mots-clés pondéré IDF dans l'historique (§10 V2,
+    backend/agents/verifier.py) — cf. `_overlap_score` pour la mesure qui a motivé la pondération.
 
     Pas d'embeddings/vector store : cohérent avec la convention « stockage fichier local comme
-    placeholder documenté avant Firestore » qui a présidé à ce module.
+    placeholder documenté avant Firestore » qui a présidé à ce module. La pondération IDF se dérive
+    du corpus déjà chargé, là où un top-k sur embeddings remplacerait le seuil à calibrer par un
+    `k` à calibrer, sur un historique qui ne permet pas encore de trancher.
 
     `exclude_links` porte tous les liens du run en cours, pas seulement celui de l'item vérifié :
     un item ne doit pas être « corroboré » par un autre item du même lot, qui n'apporte aucune
@@ -160,12 +216,14 @@ def search_related(query: str, exclude_links: set[str], limit: int = 5) -> list[
     if not query_tokens:
         return []
 
-    scored: list[tuple[int, dict]] = []
-    for record in get_persistence().analyzed_since(_cutoff(RELATED_ITEMS_WINDOW_DAYS)):
+    records = get_persistence().analyzed_since(_cutoff(RELATED_ITEMS_WINDOW_DAYS))
+    df = _document_frequencies(records)
+
+    scored: list[tuple[float, dict]] = []
+    for record in records:
         if record["link"] in exclude_links:
             continue
-        record_tokens = _tokenize(record.get("title_fr", "")) | _tokenize(record.get("summary", ""))
-        score = len(query_tokens & record_tokens)
+        score = _overlap_score(query_tokens, _record_tokens(record), df, len(records))
         if score > 0:
             scored.append((score, record))
 
@@ -191,7 +249,7 @@ def analyzed_window(days: int = RELATED_ITEMS_WINDOW_DAYS) -> dict[str, dict]:
 
 
 def search_thread_candidates(query: str, exclude_link: str, limit: int = 5) -> list[dict]:
-    """Recherche par chevauchement de mots-clés pour le nœud thread (V3 tranche 1, cf.
+    """Recherche par chevauchement de mots-clés pondéré IDF pour le nœud thread (V3 tranche 1, cf.
     backend/agents/threader.py) — même primitive que search_related, fonction séparée plutôt que
     paramètre supplémentaire pour ne rien changer au comportement déjà testé du vérificateur.
 
@@ -205,12 +263,14 @@ def search_thread_candidates(query: str, exclude_link: str, limit: int = 5) -> l
     if not query_tokens:
         return []
 
-    scored: list[tuple[int, dict]] = []
-    for record in get_persistence().analyzed_since(_cutoff(RELATED_ITEMS_WINDOW_DAYS)):
+    records = get_persistence().analyzed_since(_cutoff(RELATED_ITEMS_WINDOW_DAYS))
+    df = _document_frequencies(records)
+
+    scored: list[tuple[float, dict]] = []
+    for record in records:
         if record["link"] == exclude_link:
             continue
-        record_tokens = _tokenize(record.get("title_fr", "")) | _tokenize(record.get("summary", ""))
-        score = len(query_tokens & record_tokens)
+        score = _overlap_score(query_tokens, _record_tokens(record), df, len(records))
         if score > 0:
             scored.append((score, record))
 

@@ -111,6 +111,13 @@ def thread_events(state: VeilleState) -> VeilleState:
     l'historique (chevauchement de mots-clés non nul), sans quoi il reste thread_id=None sans appel.
     Plafonné à MAX_THREAD_ESCALATIONS_PER_RUN par run comme le vérificateur.
 
+    Mesuré sur 199 items réels : ce filtre est franchi par 100 % des items, y compris après
+    pondération IDF du score (cf. store._overlap_score). La requête étant le titre et le résumé
+    entiers, elle partage presque toujours un token avec au moins un enregistrement de la fenêtre.
+    Le seul plafond qui borne réellement le coût de ce nœud est donc
+    MAX_THREAD_ESCALATIONS_PER_RUN — ce filtre ne doit pas être présenté comme un second garde-fou
+    tant qu'un seuil n'est pas réglé sur un corpus suffisant.
+
     La fenêtre d'historique est chargée une fois (verify() a déjà écrit les items du run courant
     avant que ce nœud s'exécute, donc ils y figurent déjà) et tenue à jour en mémoire au fil de la
     boucle : un item traité tôt dans le run peut ainsi être retrouvé, avec son thread_id fraîchement
