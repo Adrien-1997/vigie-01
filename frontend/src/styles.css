@@ -716,14 +716,96 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* Trait de guidage à gauche des cartes nichées : matérialise l'ordre chronologique du fil,
-   distinct du filet de catégorie qui reste sur le panneau englobant. */
-.thread-items {
+/* La carte affichée se fond dans le panneau du fil : bordure/fond/rayon propres retirés pour
+   qu'on lise « un dossier » et non « une carte dans une carte ». Le filet de catégorie du
+   panneau englobant (.thread::before) suffit, doubler celui de .card serait redondant. */
+.thread .card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.thread .card::before {
+  display: none;
+}
+
+/* Frise de sources : choisit quel article du fil s'affiche en tête, sans empiler une carte
+   complète par source. Chaque halte porte sa propre confiance (couleur du point) et son
+   recoupement (coche) — le signal que l'empilement de cartes perdait dans la répétition. */
+.thread-rail {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 12px;
-  border-left: 2px solid var(--hairline);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--hairline);
+}
+
+.thread-step {
+  display: flex;
+  align-items: center;
+}
+
+.thread-step:not(:last-child)::after {
+  content: "";
+  width: 14px;
+  height: 1px;
+  margin: 0 2px;
+  background: var(--axis);
+}
+
+.thread-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.thread-chip:hover {
+  border-color: var(--axis);
+  color: var(--ink);
+}
+
+.thread-chip[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--wash);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.thread-chip svg {
+  flex: none;
+}
+
+.thread-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--dot, var(--ink-muted));
+}
+
+.thread-chip-date {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.thread-chip-warn {
+  display: inline-flex;
+  color: var(--status-warning);
+}
+
+.thread-chip-good {
+  display: inline-flex;
+  color: var(--status-good);
 }
 
 /* ── Jauge de confiance ─────────────────────────────────────────────────── */

@@ -1,8 +1,10 @@
+import { useState } from "react";
 import type { AnalyzedItem } from "../types";
 import { publishedMs } from "../lib/filters";
 import { CATEGORY_LABEL, CATEGORY_VAR } from "../lib/taxonomy";
 import { ItemCard } from "./ItemCard";
-import { ThreadIcon } from "./Icons";
+import { ThreadIcon, CheckIcon, AlertIcon } from "./Icons";
+import { confidenceColor } from "../lib/confidence";
 
 function dayLabel(item: AnalyzedItem): string | null {
   const ms = publishedMs(item);
@@ -17,10 +19,25 @@ function spanLabel(items: AnalyzedItem[]): string | null {
   return first === last ? first : `${first} → ${last}`;
 }
 
+function chipTitle(item: AnalyzedItem): string {
+  const parts = [item.source];
+  const day = dayLabel(item);
+  if (day) parts.push(day);
+  parts.push(item.confidence_score !== null ? `confiance ${item.confidence_score.toFixed(2)}` : "non vérifié");
+  if (item.corroborated === true) parts.push("recoupé");
+  if (item.corroborated === false) parts.push("source unique");
+  if (item.state_affiliated) parts.push("média d'État");
+  return parts.join(" · ");
+}
+
 /** Fil chronologique : plusieurs items du même dossier (V3 tranche 1, backend/agents/threader.py),
- *  déjà triés du plus ancien au plus récent par groupThreads. La pastille de catégorie affichée est
- *  celle de l'item le plus récent — chaque ItemCard nichée garde de toute façon la sienne. */
+ *  déjà triés du plus ancien au plus récent par groupThreads. Une seule carte est affichée à la
+ *  fois (la plus récente par défaut) ; la frise en dessous laisse choisir quel article du fil
+ *  prend sa place, plutôt que d'empiler N cartes complètes — le signal qui manquait n'était pas
+ *  plus de cartes, c'était la confiance/le recoupement de chaque source visibles d'un coup d'œil. */
 export function ThreadGroupCard({ items }: { items: AnalyzedItem[] }) {
+  const [selected, setSelected] = useState(items.length - 1);
+  const shown = items[selected] ?? items[items.length - 1];
   const lead = items[items.length - 1];
   const span = spanLabel(items);
 
@@ -34,11 +51,36 @@ export function ThreadGroupCard({ items }: { items: AnalyzedItem[] }) {
         </span>
         {span && <span className="thread-span">{span}</span>}
       </header>
-      <div className="thread-items">
-        {items.map((item) => (
-          <ItemCard key={item.link} item={item} />
+
+      <ItemCard item={shown} />
+
+      <ol className="thread-rail">
+        {items.map((item, i) => (
+          <li key={item.link} className="thread-step">
+            <button
+              type="button"
+              className="thread-chip"
+              aria-pressed={i === selected}
+              title={chipTitle(item)}
+              onClick={() => setSelected(i)}
+            >
+              <i className="thread-chip-dot" style={{ ["--dot" as string]: confidenceColor(item.confidence_score) }} />
+              {item.state_affiliated && (
+                <span className="thread-chip-warn">
+                  <AlertIcon />
+                </span>
+              )}
+              <span className="thread-chip-source">{item.source}</span>
+              <span className="thread-chip-date">{dayLabel(item)}</span>
+              {item.corroborated === true && (
+                <span className="thread-chip-good">
+                  <CheckIcon />
+                </span>
+              )}
+            </button>
+          </li>
         ))}
-      </div>
+      </ol>
     </section>
   );
 }
