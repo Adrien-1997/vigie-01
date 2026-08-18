@@ -30,6 +30,13 @@ function resolutionLabel(item: AnalyzedItem, match: LocationMatch | null): strin
 /** Vue tableau : canal d'accessibilité exigé par la palette (trois teintes catégorielles
  *  passent sous 3:1 en mode clair) et vue de travail pour comparer les scores en colonne. */
 export function TableView({ items }: { items: AnalyzedItem[] }) {
+  // Ne jamais fusionner silencieusement (convention déjà appliquée à Provenance, cf. geo.ts) :
+  // un fil reste visible ligne par ligne, avec juste un compteur pour signaler le regroupement.
+  const threadCounts = new Map<string, number>();
+  for (const item of items) {
+    if (item.thread_id) threadCounts.set(item.thread_id, (threadCounts.get(item.thread_id) ?? 0) + 1);
+  }
+
   return (
     <div className="panel table-wrap">
       <table>
@@ -59,6 +66,14 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
                   <a href={item.link} target="_blank" rel="noopener noreferrer">
                     {item.title_fr}
                   </a>
+                  {item.thread_id && (threadCounts.get(item.thread_id) ?? 0) > 1 && (
+                    <>
+                      {" "}
+                      <span className="badge quiet" title="Plusieurs articles rattachés au même dossier">
+                        Fil · {threadCounts.get(item.thread_id)}
+                      </span>
+                    </>
+                  )}
                 </td>
                 <td>
                   {item.source}

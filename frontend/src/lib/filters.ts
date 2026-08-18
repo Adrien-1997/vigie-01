@@ -85,7 +85,7 @@ export function applyFilters(items: AnalyzedItem[], f: Filters, except?: Dimensi
 /** Beaucoup de flux ne datent pas leurs items (`published` vide) : sans repli, ces items
  *  tomberaient tous en fin de tri « plus récents » quelle que soit leur fraîcheur réelle.
  *  `first_seen` — l'entrée dans l'historique — est la seule date toujours renseignée. */
-const publishedMs = (item: AnalyzedItem) => {
+export const publishedMs = (item: AnalyzedItem) => {
   for (const candidate of [item.published, item.first_seen]) {
     const t = candidate ? new Date(candidate).getTime() : NaN;
     if (!Number.isNaN(t)) return t;

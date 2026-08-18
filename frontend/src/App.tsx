@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiUnreachable, NoDigestYet, fetchDigest, triggerRun } from "./api";
 import type { AnalyzedItem, Digest } from "./types";
 import { EMPTY_FILTERS, applyFilters, sortItems, type Filters, type SortKey } from "./lib/filters";
+import { groupThreads } from "./lib/threads";
 import { FilterRail } from "./components/FilterRail";
 import { KpiStrip } from "./components/KpiStrip";
 import { ItemCard } from "./components/ItemCard";
+import { ThreadGroupCard } from "./components/ThreadGroup";
 import { WorldMap } from "./components/WorldMap";
 import { TableView } from "./components/TableView";
 import { ListIcon, MapIcon, MoonIcon, RefreshIcon, SunIcon, TableIcon } from "./components/Icons";
@@ -305,9 +307,13 @@ export default function App() {
               <TableView items={visible} />
             ) : (
               <div className="list">
-                {visible.map((item) => (
-                  <ItemCard key={item.link} item={item} />
-                ))}
+                {groupThreads(visible).map((group) =>
+                  group.length > 1 ? (
+                    <ThreadGroupCard key={group[0].thread_id} items={group} />
+                  ) : (
+                    <ItemCard key={group[0].link} item={group[0]} />
+                  ),
+                )}
               </div>
             )}
           </main>

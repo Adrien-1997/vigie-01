@@ -171,6 +171,17 @@ MAX_VERIFIER_ESCALATIONS_PER_RUN = 15
 # soumise).
 MAX_VERIFIER_STEPS_PER_ITEM = 3
 
+# Nœud thread (V3 tranche 1, cf. docs/cadrage.md §10 et backend/agents/threader.py). Contrairement
+# au vérificateur, pas de filtre par catégorie : hors_perimetre n'atteint jamais analyzed_items
+# (backend/agents/analyst.py l'écarte avant construction), donc tout item qui arrive jusqu'ici est
+# déjà éligible à être rattaché à un dossier.
+# Plafond par run, même rôle que MAX_VERIFIER_ESCALATIONS_PER_RUN, plus haut car l'éligibilité est
+# plus large (5 catégories contre 2) : évite qu'un seul run consomme l'essentiel du budget quotidien
+# sur le seul regroupement en fils.
+MAX_THREAD_ESCALATIONS_PER_RUN = 20
+# Plafond d'itérations d'outil par item escaladé, même rôle que MAX_VERIFIER_STEPS_PER_ITEM.
+MAX_THREAD_STEPS_PER_ITEM = 3
+
 # Profondeur par défaut du digest servi par GET /events, en jours. Le digest est une fenêtre
 # glissante sur l'historique analysé (backend/memory/store.py), pas le résultat du dernier run :
 # sinon un second run dans la même journée, dont le dédoublonnage a écarté presque tous les items,

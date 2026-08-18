@@ -29,6 +29,10 @@ export interface AnalyzedItem {
   domestic_to_source?: boolean;
   confidence_score: number | null;
   corroborated: boolean | null;
+  /** Rattachement à un dossier partagé avec d'autres items (V3 tranche 1, backend/agents/threader.py).
+   *  Optionnel : les digests produits avant son introduction ne le portent pas. `null`/absent = pas
+   *  encore rattaché à un autre item, pas une valeur à combler. */
+  thread_id?: string | null;
   /** Horodatage d'entrée dans l'historique — pas la date de publication de l'article, souvent
    *  absente des flux. C'est la seule date toujours présente, donc celle qui ordonne le digest. */
   first_seen?: string;

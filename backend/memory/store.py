@@ -86,7 +86,10 @@ def record_analyzed(items: list[AnalyzedItem]) -> None:
     verifier, pas par l'ordre d'écriture.
 
     `first_seen` est conservé lors d'une réécriture : un item ré-analysé ne doit pas rajeunir, sinon
-    il ne sortirait jamais de la fenêtre de rétention.
+    il ne sortirait jamais de la fenêtre de rétention. `thread_id` est préservé de la même façon,
+    défensivement : le nœud thread (V3 tranche 1) fixe toujours explicitement ce champ sur les items
+    qu'il traite, mais un futur appelant qui ne le ferait pas ne doit pas effacer un rattachement
+    déjà établi.
     """
     if not items:
         return
@@ -102,6 +105,7 @@ def record_analyzed(items: list[AnalyzedItem]) -> None:
                 **item,
                 "date": known.get(item["link"], {}).get("date", today),
                 "first_seen": known.get(item["link"], {}).get("first_seen", now),
+                "thread_id": item.get("thread_id") or known.get(item["link"], {}).get("thread_id"),
             }
             for item in items
         ]
@@ -168,6 +172,53 @@ def search_related(query: str, exclude_links: set[str], limit: int = 5) -> list[
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return [
         {
+            "date": record["date"],
+            "source": record["source"],
+            "country": record.get("country", ""),
+            "category": record["category"],
+            "title_fr": record["title_fr"],
+        }
+        for _, record in scored[:limit]
+    ]
+
+
+def analyzed_window(days: int = RELATED_ITEMS_WINDOW_DAYS) -> dict[str, dict]:
+    """Fenêtre d'historique indexée par lien, pour un appelant qui doit résoudre un lien vers son
+    enregistrement complet (ex. backend/agents/threader.py, pour patcher thread_id sans repartir
+    d'un enregistrement partiel — put_analyzed remplace par lien, pas de patch partiel, cf.
+    backend/memory/persistence.py)."""
+    return {r["link"]: r for r in get_persistence().analyzed_since(_cutoff(days))}
+
+
+def search_thread_candidates(query: str, exclude_link: str, limit: int = 5) -> list[dict]:
+    """Recherche par chevauchement de mots-clés pour le nœud thread (V3 tranche 1, cf.
+    backend/agents/threader.py) — même primitive que search_related, fonction séparée plutôt que
+    paramètre supplémentaire pour ne rien changer au comportement déjà testé du vérificateur.
+
+    Deux différences volontaires avec search_related : `exclude_link` ne porte que le lien de
+    l'item courant, pas tout le lot du run (un fil n'exige pas de confirmation indépendante dans le
+    temps comme la corroboration — deux sources qui couvrent le même événement le même jour sont le
+    cas le plus net de « même dossier ») ; le résultat inclut `link` et `thread_id` pour que
+    l'appelant puisse rattacher un dossier à l'enregistrement historique retrouvé.
+    """
+    query_tokens = _tokenize(query)
+    if not query_tokens:
+        return []
+
+    scored: list[tuple[int, dict]] = []
+    for record in get_persistence().analyzed_since(_cutoff(RELATED_ITEMS_WINDOW_DAYS)):
+        if record["link"] == exclude_link:
+            continue
+        record_tokens = _tokenize(record.get("title_fr", "")) | _tokenize(record.get("summary", ""))
+        score = len(query_tokens & record_tokens)
+        if score > 0:
+            scored.append((score, record))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [
+        {
+            "link": record["link"],
+            "thread_id": record.get("thread_id"),
             "date": record["date"],
             "source": record["source"],
             "country": record.get("country", ""),

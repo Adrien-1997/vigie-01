@@ -72,6 +72,15 @@ export const SunIcon = () => (
   </svg>
 );
 
+export const ThreadIcon = () => (
+  <svg {...base} width={12} height={12}>
+    <circle cx="4" cy="4" r="2" />
+    <circle cx="4" cy="12" r="2" />
+    <circle cx="12" cy="8" r="2" />
+    <path d="M5.6 5.1 10.4 7.2M5.6 10.9 10.4 8.8" />
+  </svg>
+);
+
 export const MoonIcon = () => (
   <svg {...base} width={15} height={15}>
     <path d="M13.5 9.4A5.9 5.9 0 0 1 6.6 2.5a5.9 5.9 0 1 0 6.9 6.9Z" />

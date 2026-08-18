@@ -50,6 +50,9 @@ class AnalyzedItem(TypedDict):
     # Renseignés par le vérificateur en V2 (cf. docs/cadrage.md §10) ; absents en V1.
     confidence_score: float | None
     corroborated: bool | None
+    # Renseigné par le nœud thread en V3 tranche 1 (cf. docs/cadrage.md §10) ; None tant qu'aucun
+    # autre item du même dossier n'a été retrouvé — jamais comblé par une valeur fabriquée.
+    thread_id: str | None
 
 
 class VeilleState(TypedDict):

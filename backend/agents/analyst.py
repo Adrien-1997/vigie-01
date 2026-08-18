@@ -340,4 +340,5 @@ def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[An
             domestic_to_source=domestic_to_source,
             confidence_score=None,
             corroborated=None,
+            thread_id=None,
         )
