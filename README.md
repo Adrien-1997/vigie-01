@@ -31,7 +31,7 @@ est le signal. Aucun indice de fiabilité n'est agrégé au niveau du thread.
 
 ## Cadrage
 
-Cadrage complet — problématique, périmètre MECE, alternatives évaluées, KPIs, matrice de risques, gouvernance, plan de livraison — dans [`docs/cadrage.md`](docs/cadrage.md). Synthèse visuelle : [`docs/slides.html`](docs/slides.html) (support de présentation navigable, ouvrir dans un navigateur).
+Cadrage complet — problématique, périmètre MECE, alternatives évaluées, KPIs, matrice de risques, gouvernance, plan de livraison — dans [`docs/cadrage.md`](docs/cadrage.md). Synthèse visuelle : [support de présentation navigable](https://adrien-1997.github.io/vigie-01/slides.html) (source : [`docs/slides.html`](docs/slides.html)).
 
 **Valeur** : diviser le temps de synthèse quotidienne, standardiser la lecture des signaux faibles, tracer la fiabilité de chaque information remontée.
 
@@ -153,6 +153,7 @@ vigie/
 ├── docs/
 │   ├── cadrage.md               # cadrage produit (problématique, MECE, risques, KPIs)
 │   ├── decisions.md             # choix d'ingénierie : garde-fous, invariants, campagne
+│   ├── index.html               # racine GitHub Pages (redirige vers les slides)
 │   ├── slides.html              # support de présentation navigable
 │   └── screenshot*.png          # captures régénérées contre l'application réelle
 ├── .env.example
