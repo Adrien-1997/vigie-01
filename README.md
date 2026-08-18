@@ -1,5 +1,8 @@
 # VEILLE-01 — Agent de veille export & risque défense/géopolitique
 
+[![CI](https://github.com/Adrien-1997/vigie-01/actions/workflows/ci.yml/badge.svg)](https://github.com/Adrien-1997/vigie-01/actions/workflows/ci.yml)
+[![Licence : MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 Agent IA autonome qui collecte, classe et synthétise quotidiennement des sources ouvertes sur un périmètre défense/géopolitique restreint, avec traçabilité systématique de chaque affirmation vers sa source.
 
 **Statut** : pipeline V1 fonctionnel de bout en bout (collecte → dédoublonnage → classification → vérification → regroupement en threads → API → frontend), première tranche du vérificateur V2 et première tranche du raisonnement longitudinal V3 livrées, déploiement cloud à venir. Détail dans [Roadmap](#roadmap).
@@ -153,6 +156,7 @@ vigie/
 │   ├── slides.html              # support de présentation navigable
 │   └── screenshot*.png          # captures régénérées contre l'application réelle
 ├── .env.example
+├── LICENSE
 └── README.md
 ```
 
@@ -228,3 +232,9 @@ pas le travail qu'il vient de faire payer. Détail de chacun, et ce que chacun a
 ## Note
 
 Projet de démonstration à vocation portfolio. Le pipeline et l'API sont réels et fonctionnels (sources RSS live, appels LLM réels, mesures réelles) ; le déploiement cloud reste à construire, et le vérificateur ne couvre pour l'instant que les catégories les plus sensibles — les autres items sortent sans score de confiance plutôt qu'avec un score fabriqué par défaut.
+
+## Licence
+
+[MIT](LICENSE) — code réutilisable librement, y compris commercialement, sous réserve de conserver
+la mention de copyright. Les captures d'écran reproduisent des titres de presse dont les droits
+restent à leurs éditeurs respectifs.
