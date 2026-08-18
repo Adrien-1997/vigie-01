@@ -6,9 +6,8 @@ import { ThreadTimeline } from "./ThreadTimeline";
 import { ThreadProvenance } from "./ThreadProvenance";
 import { AlertIcon, CheckIcon, ThreadIcon } from "./Icons";
 
-/** Vue déployée d'un fil : la chronologie et la provenance passent devant l'article, qui devient
- *  le détail qu'on consulte après avoir lu la forme du dossier — l'inverse de la carte d'article,
- *  où le fil n'était qu'une décoration.
+/** Vue déployée d'un thread : la chronologie et la provenance passent devant l'article, qui
+ *  devient le détail qu'on consulte après avoir lu la forme du dossier.
  *
  *  Aucun indicateur agrégé de fiabilité n'est calculé ici. Les compteurs de vérification disent
  *  combien d'articles ont été escaladés et ce qu'il est advenu des autres, en distinguant « pas
@@ -28,7 +27,7 @@ export function ThreadDetail({ thread }: { thread: ThreadModel }) {
         </span>
         <span className="td-kind">
           <ThreadIcon />
-          Fil d'événements
+          Thread d'événements
         </span>
       </header>
 
@@ -59,11 +58,6 @@ export function ThreadDetail({ thread }: { thread: ThreadModel }) {
       </p>
 
       <div className="td-flags">
-        {/* « Antécédent dans l'historique » plutôt que « recoupé » : le champ mesure ce que la base
-            contenait au moment où l'article est passé au vérificateur, pas un recoupement entre les
-            articles du fil — que le vérificateur ne fait jamais, `exclude_links` portant tout le lot
-            en cours. Dit « recoupé » à côté d'un fil de trois sources, il se lisait comme une
-            contradiction (cf. backend/memory/store.py:155). */}
         {thread.corroborated > 0 && (
           <span className="badge good" title="Le vérificateur a trouvé, dans l'historique des runs précédents, au moins un article traitant du même dossier.">
             <CheckIcon />
@@ -86,7 +80,7 @@ export function ThreadDetail({ thread }: { thread: ThreadModel }) {
           </span>
         )}
         {thread.breaker.state_affiliated && (
-          <span className="badge warn" title="Le premier article paru du fil émane d'un média d'État ou d'une agence semi-officielle : la primeur est une revendication, pas un fait établi.">
+          <span className="badge warn" title="Le premier article paru du thread émane d'un média d'État ou d'une agence semi-officielle : la primeur est une revendication, pas un fait établi.">
             <AlertIcon />
             Primeur d'un média d'État
           </span>

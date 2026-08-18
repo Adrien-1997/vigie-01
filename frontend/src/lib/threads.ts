@@ -3,20 +3,19 @@ import { publishedMs } from "./filters";
 import { computeCoverage, type Coverage } from "./coverage";
 import { VERIFIER_CATEGORIES } from "./taxonomy";
 
-/** Un groupe d'un seul item est un item autonome ; un groupe de plusieurs est un fil. Le composant
- *  de rendu décide comment traiter chaque cas — cette fonction ne fait que regrouper. */
+/** Un groupe d'un seul item est un item autonome ; un groupe de plusieurs est un thread. */
 export type ThreadGroup = AnalyzedItem[];
 
 /** Regroupe une liste déjà filtrée/triée par `thread_id`, sans changer l'ordre relatif : un groupe
  *  apparaît à la position de son premier item rencontré, les occurrences suivantes du même
  *  `thread_id` s'y ajoutent plutôt que de créer une nouvelle entrée plus loin dans la liste. Un
- *  item sans `thread_id` reste seul — ce n'est pas un fil de taille 1, il n'a jamais été rapproché
- *  d'un autre dossier.
+ *  item sans `thread_id` reste seul — ce n'est pas un thread de taille 1, il n'a jamais été
+ *  rapproché d'un autre dossier.
  *
  *  Chaque groupe de plusieurs items est ensuite trié par ordre chronologique croissant, quel que
  *  soit le critère de tri global (confiance, catégorie…) qui a déterminé la position du groupe
- *  lui-même : c'est ce qui fait du fil un « fil chronologique » plutôt qu'un simple paquet
- *  d'articles liés. */
+ *  lui-même : c'est ce qui fait du thread une chronologie plutôt qu'un simple paquet d'articles
+ *  liés. */
 export function groupThreads(items: AnalyzedItem[]): ThreadGroup[] {
   const groups: ThreadGroup[] = [];
   const indexByThreadId = new Map<string, number>();
@@ -81,24 +80,22 @@ export interface SourceCountryBucket {
   stateAffiliated: number;
 }
 
-/** Agrégat dérivé d'un groupe d'items partageant un `thread_id`. Il n'existe aucun objet fil côté
- *  backend (`backend/agents/threader.py` ne fait qu'écrire l'identifiant sur des items) : ce modèle
- *  est calculé côté client, une fois, pour que la chronologie, la provenance et l'en-tête décrivent
- *  le même fil au lieu de le recalculer chacun de leur côté — la divergence que `computeCoverage`
- *  a déjà eu à corriger entre la carte et la bande de KPI.
+/** Agrégat dérivé d'un groupe d'items partageant un `thread_id`. Il n'existe aucun objet thread
+ *  côté backend (`backend/agents/threader.py` ne fait qu'écrire l'identifiant sur des items) : ce
+ *  modèle est calculé côté client, une fois, pour que la chronologie, la provenance et l'en-tête
+ *  décrivent le même thread au lieu de le recalculer chacun de leur côté.
  *
- *  Ce qui est délibérément absent : tout score agrégé. Pas de moyenne de confiance, pas d'indice de
- *  fiabilité du fil. `confidence_score` et `corroborated` valent `null` sur les items que le
- *  vérificateur n'a pas escaladés, et CLAUDE.md interdit de combler ce vide par une heuristique —
- *  une moyenne le comblerait implicitement, en faisant passer un fil non vérifié pour un fil
- *  moyennement fiable. On expose la distribution, l'affichage la rend telle quelle. */
+ *  Ce qui est délibérément absent : tout score agrégé. `confidence_score` et `corroborated` valent
+ *  `null` sur les items que le vérificateur n'a pas escaladés, et combler ce vide par une moyenne
+ *  ferait passer un thread non vérifié pour un thread moyennement fiable. On expose la
+ *  distribution, l'affichage la rend telle quelle. */
 export interface ThreadModel {
   id: string;
   /** Chronologique croissant. */
   items: AnalyzedItem[];
   /** Premier paru : qui sort l'information. */
   breaker: AnalyzedItem;
-  /** Plus récent : porte le titre et la catégorie du fil. */
+  /** Plus récent : porte le titre et la catégorie du thread. */
   lead: AnalyzedItem;
   category: Category;
   startMs: number;
@@ -122,9 +119,9 @@ export interface ThreadModel {
   unscoredOutOfScope: number;
 }
 
-/** Construit le modèle d'un fil. Attend un groupe d'au moins deux items partageant un `thread_id`
- *  (ce que produit `groupThreads`) ; retrie par sécurité, l'ordre chronologique étant le seul
- *  invariant dont tout le rendu dépend. */
+/** Construit le modèle d'un thread. Attend un groupe d'au moins deux items partageant un
+ *  `thread_id` (ce que produit `groupThreads`) ; retrie par sécurité, l'ordre chronologique étant
+ *  le seul invariant dont tout le rendu dépend. */
 export function buildThread(group: AnalyzedItem[]): ThreadModel {
   const items = [...group].sort((a, b) => publishedMs(a) - publishedMs(b));
   const breaker = items[0];

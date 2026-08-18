@@ -13,10 +13,9 @@ function formatDate(published: string): string | null {
 export function ItemCard({ item }: { item: AnalyzedItem }) {
   const date = formatDate(item.published);
 
-  // Surface de lecture : on montre le pays en français plutôt que l'extrait brut, qui ressort
-  // dans la langue de la source (« Großbritannien »). L'extrait reste consultable en infobulle,
-  // et la traçabilité de l'item est de toute façon portée par le bloc citation au-dessus.
-  // Un lieu non rattachable à un pays n'a pas d'équivalent français : il s'affiche tel quel.
+  // Le pays en français plutôt que l'extrait brut, qui ressort dans la langue de la source
+  // (« Großbritannien ») ; l'extrait reste consultable en infobulle. Un lieu non rattachable à un
+  // pays n'a pas d'équivalent français : il s'affiche tel quel.
   const match = resolveLocation(item);
   const place = match ? countryLabel(match.feature) : item.location;
   const placeTitle = match && place !== item.location.trim() ? `Lieu extrait de la source : ${item.location}` : undefined;
@@ -31,11 +30,8 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
 
         <ConfidenceGauge score={item.confidence_score} category={item.category} />
 
-        {/* « Antécédent » et non « recoupé » : le champ dit qu'un article *antérieur* de
-            l'historique traitait déjà du dossier, à l'instant où celui-ci est passé au
-            vérificateur. Le mot « recoupé », lu à côté d'un fil multi-sources, laissait croire à
-            un recoupement entre les articles affichés — que le vérificateur ne fait jamais,
-            `exclude_links` excluant tout le lot en cours (backend/memory/store.py:155). */}
+        {/* « Antécédent » et non « recoupé » : le vérificateur ne recoupe jamais entre eux les
+            articles affichés, `exclude_links` excluant tout le lot en cours. */}
         {item.corroborated === true && (
           <span className="badge good" title="Au moins un article antérieur de l'historique traite du même dossier.">
             <CheckIcon />

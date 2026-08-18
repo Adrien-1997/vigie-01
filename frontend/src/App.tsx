@@ -38,9 +38,7 @@ type View = "list" | "threads" | "map" | "table";
 // Référence stable : un littéral `[]` recréé à chaque rendu invaliderait les mémos en aval.
 const NO_ITEMS: AnalyzedItem[] = [];
 
-// Profondeurs proposées, bornées à l'exécution par `max_window_days` que renvoie l'API : la
-// rétention de l'historique est décidée côté backend, le front ne doit pas proposer plus profond
-// que ce qui est réellement conservé.
+// Bornées à l'exécution par `max_window_days` : la rétention est décidée côté backend.
 const WINDOW_CHOICES = [1, 7, 14, 30];
 
 const SORT_LABEL: Record<SortKey, string> = {
@@ -70,18 +68,15 @@ export default function App() {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
-  // Distinct de `runError` : un run tronqué a produit et enregistré des items. Le rendre en rouge
-  // le ferait lire comme un échec, alors que le digest affiché vient d'être mis à jour.
+  // Distinct de `runError` : un run tronqué a produit et enregistré des items.
   const [runNotice, setRunNotice] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<View>("list");
   const [sort, setSort] = useState<SortKey>("recent");
-  // `null` = laisser le backend appliquer sa fenêtre par défaut, tant que l'utilisateur n'a pas
-  // choisi lui-même une profondeur.
+  // `null` = laisser le backend appliquer sa fenêtre par défaut.
   const [windowDays, setWindowDays] = useState<number | null>(null);
-  // Trois états : pas de choix explicite (on suit le système), clair, sombre. Le bouton doit
-  // proposer l'inverse du thème *effectif*, pas de la préférence stockée — sinon, sous un système
-  // en sombre et sans choix stocké, le premier clic ne change rien à l'écran.
+  // Trois états : pas de choix explicite (on suit le système), clair, sombre. Le bouton propose
+  // l'inverse du thème *effectif*, sans quoi le premier clic ne changerait rien à l'écran.
   const [theme, setTheme] = useState<"light" | "dark" | null>(
     () => (localStorage.getItem("vigie-theme") as "light" | "dark" | null) ?? null,
   );
@@ -126,9 +121,6 @@ export default function App() {
     try {
       const result = await triggerRun();
       await load();
-      // Un run tronqué par le plafond de budget est un succès partiel, pas une erreur : le digest
-      // vient bien d'être enrichi des items analysés avant l'arrêt. Le signaler explicitement —
-      // silencieux, il se lirait comme une collecte complète, donc comme une actualité pauvre.
       if (result.truncated)
         setRunNotice(
           `Plafond de budget LLM atteint : la collecte s'est arrêtée avant la fin du lot. ` +
@@ -145,9 +137,8 @@ export default function App() {
 
   const items = status.kind === "ready" ? status.digest.items : NO_ITEMS;
   const visible = useMemo(() => sortItems(applyFilters(items, filters), sort), [items, filters, sort]);
-  // Les fils sont construits sur les items *filtrés* : un filtre peut ramener un fil sous les deux
-  // articles qui le définissent, auquel cas il n'en est plus un et disparaît de l'onglet. C'est le
-  // comportement voulu — mais il doit être dit, d'où la mention affichée quand un filtre est actif.
+  // Construits sur les items *filtrés* : un filtre peut ramener un thread sous les deux articles
+  // qui le définissent, auquel cas il disparaît de l'onglet — d'où la mention affichée plus bas.
   const threads = useMemo(
     () => groupThreads(visible).filter((group) => group.length > 1).map(buildThread),
     [visible],
@@ -163,9 +154,6 @@ export default function App() {
 
         <div className="topbar-spacer" />
 
-        {/* « Dernière collecte » et non « digest généré » : le digest n'est plus la photographie
-            d'un run mais une fenêtre glissante sur l'historique, dont cet horodatage marque
-            l'entrée la plus récente. */}
         {status.kind === "ready" && status.digest.generated_at && (
           <span className="stamp">
             Dernière collecte {relativeStamp(status.digest.generated_at)} ·{" "}
@@ -254,7 +242,7 @@ export default function App() {
                   <ListIcon /> Liste
                 </button>
                 <button aria-pressed={view === "threads"} onClick={() => setView("threads")}>
-                  <ThreadIcon /> Fils
+                  <ThreadIcon /> Threads
                   {threads.length > 0 && <span className="seg-count">{threads.length}</span>}
                 </button>
                 <button aria-pressed={view === "map"} onClick={() => setView("map")}>
@@ -308,8 +296,7 @@ export default function App() {
 
             {items.length === 0 ? (
               // Fenêtre vide sur un historique non vide : c'est la profondeur qu'il faut élargir,
-              // pas les filtres. Proposer « réinitialiser les filtres » ici enverrait sur une
-              // fausse piste.
+              // pas les filtres.
               <div className="state">
                 <h2>Aucun item sur cette période</h2>
                 <p>
@@ -335,11 +322,12 @@ export default function App() {
             ) : view === "threads" ? (
               threads.length === 0 ? (
                 <div className="state">
-                  <h2>Aucun fil sur cette période</h2>
+                  <h2>Aucun thread sur cette période</h2>
                   <p>
-                    Un fil naît du rapprochement d'au moins deux articles traitant du même dossier.
-                    La plupart des items restent isolés : c'est l'état normal d'une veille, pas une
-                    anomalie. Les fils apparaîtront ici à mesure que l'historique s'accumule.
+                    Un thread naît du rapprochement d'au moins deux articles traitant du même
+                    dossier. La plupart des items restent isolés : c'est l'état normal d'une veille,
+                    pas une anomalie. Les threads apparaîtront ici à mesure que l'historique
+                    s'accumule.
                   </p>
                   {hasActiveFilters(filters) && (
                     <button className="btn btn-ghost" onClick={() => setFilters(EMPTY_FILTERS)}>
@@ -351,9 +339,9 @@ export default function App() {
                 <div className="list">
                   {hasActiveFilters(filters) && (
                     <p className="note">
-                      Les fils sont reconstruits sur les items filtrés : un article exclu par un
-                      filtre est absent de sa chronologie, et un fil réduit à un seul article n'est
-                      plus affiché ici.
+                      Les threads sont reconstruits sur les items filtrés : un article exclu par
+                      un filtre est absent de sa chronologie, et un thread réduit à un seul article
+                      n'est plus affiché ici.
                     </p>
                   )}
                   {threads.map((thread) => (

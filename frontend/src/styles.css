@@ -700,7 +700,7 @@ button {
   text-decoration: underline;
 }
 
-/* ── Fil d'événements ───────────────────────────────────────────────────── */
+/* ── Thread d'événements ───────────────────────────────────────────────────── */
 
 .thread {
   position: relative;
@@ -734,7 +734,7 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-/* La carte affichée se fond dans le panneau du fil : bordure/fond/rayon propres retirés pour
+/* La carte affichée se fond dans le panneau du thread : bordure/fond/rayon propres retirés pour
    qu'on lise « un dossier » et non « une carte dans une carte ». Le filet de catégorie du
    panneau englobant (.thread::before) suffit, doubler celui de .card serait redondant. */
 .thread .card {
@@ -752,10 +752,10 @@ button {
   margin-top: 10px;
 }
 
-/* ── Chronologie de fil ─────────────────────────────────────────────────── */
+/* ── Chronologie de thread ─────────────────────────────────────────────────── */
 
 /* Remplace le rail de pastilles équidistantes : l'abscisse d'un nœud est proportionnelle à
-   l'instant réel de parution. Des pastilles régulières rendaient identiques un fil bouclé en
+   l'instant réel de parution. Des pastilles régulières rendaient identiques un thread bouclé en
    vingt minutes et un dossier étalé sur trois semaines — or l'écart *est* le signal. En
    conséquence : on ne déplace jamais un nœud pour désencombrer, on décale son étiquette d'une
    rangée (--row), la position restant une affirmation sur le temps. */
@@ -932,7 +932,7 @@ button {
   font-weight: 500;
 }
 
-/* ── Provenance d'un fil ────────────────────────────────────────────────── */
+/* ── Provenance d'un thread ────────────────────────────────────────────────── */
 
 /* Deux colonnes qui ne doivent jamais fusionner : à gauche le pays du média, à droite le pays de
    l'événement. Le rattachement passe par le contenu de l'article, pas par l'origine du média
@@ -1040,7 +1040,7 @@ button {
   width: 100%;
 }
 
-/* Un fil par article. La quantité se compte, elle ne se jauge plus sur l'épaisseur d'un ruban —
+/* Un trait par article. La quantité se compte, elle ne se jauge plus sur l'épaisseur d'un ruban —
    et le tireté qui distingue les niveaux de provenance porte enfin sur le trait lui-même. */
 .pv-strand {
   fill: none;
@@ -1081,7 +1081,7 @@ button {
   flex: none;
 }
 
-/* Mêmes épaisseur et bouts ronds que les fils : l'échantillon doit être reconnaissable comme le
+/* Mêmes épaisseur et bouts ronds que les traits : l'échantillon doit être reconnaissable comme le
    trait qu'il désigne, pas comme une version amaigrie. */
 .pv-sample line {
   stroke: var(--ink-2);
@@ -1115,7 +1115,7 @@ button {
   margin-top: 14px;
 }
 
-/* ── Fil déployé ────────────────────────────────────────────────────────── */
+/* ── Thread déployé ────────────────────────────────────────────────────────── */
 
 .thread-detail {
   position: relative;

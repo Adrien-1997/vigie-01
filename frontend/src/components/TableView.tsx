@@ -30,8 +30,8 @@ function resolutionLabel(item: AnalyzedItem, match: LocationMatch | null): strin
 /** Vue tableau : canal d'accessibilité exigé par la palette (trois teintes catégorielles
  *  passent sous 3:1 en mode clair) et vue de travail pour comparer les scores en colonne. */
 export function TableView({ items }: { items: AnalyzedItem[] }) {
-  // Ne jamais fusionner silencieusement (convention déjà appliquée à Provenance, cf. geo.ts) :
-  // un fil reste visible ligne par ligne, avec juste un compteur pour signaler le regroupement.
+  // Ne jamais fusionner silencieusement : un thread reste visible ligne par ligne, avec un
+  // compteur pour signaler le regroupement.
   const threadCounts = new Map<string, number>();
   for (const item of items) {
     if (item.thread_id) threadCounts.set(item.thread_id, (threadCounts.get(item.thread_id) ?? 0) + 1);
@@ -52,8 +52,6 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
         </thead>
         <tbody>
           {items.map((item) => {
-            // La carte agrège ; le tableau est le seul endroit où l'analyste voit, item par item,
-            // où celui-ci atterrit et sur quoi ce rattachement repose.
             const match = resolveLocation(item);
             const resolution = resolutionLabel(item, match);
             return (
@@ -70,7 +68,7 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
                     <>
                       {" "}
                       <span className="badge quiet" title="Plusieurs articles rattachés au même dossier">
-                        Fil · {threadCounts.get(item.thread_id)}
+                        Thread · {threadCounts.get(item.thread_id)}
                       </span>
                     </>
                   )}

@@ -9,14 +9,13 @@ const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-/** Écart minimal entre deux nœuds, en % de la piste, en dessous duquel leurs étiquettes se
- *  chevaucheraient. Au-delà de ce seuil on décale l'étiquette d'une rangée — jamais le nœud :
- *  son abscisse encode un instant réel, la déplacer mentirait sur la chronologie. */
+/** Écart en dessous duquel deux étiquettes se chevaucheraient, en % de la piste. On décale alors
+ *  l'étiquette d'une rangée — jamais le nœud, dont l'abscisse encode un instant réel. */
 const MIN_GAP_PCT = 17;
 const MAX_ROW = 2;
 
-/** Pas de graduation choisi pour garder une dizaine de repères au plus, quelle que soit l'échelle
- *  du fil — quelques minutes entre deux dépêches ou plusieurs semaines de dossier. */
+/** Pas de graduation gardant une dizaine de repères au plus, de quelques minutes entre deux
+ *  dépêches à plusieurs semaines de dossier. */
 function tickStep(spanMs: number): number {
   if (spanMs <= 2 * HOUR) return 30 * MINUTE;
   if (spanMs <= 8 * HOUR) return HOUR;
@@ -78,25 +77,22 @@ interface Props {
   thread: ThreadModel;
   selected: number;
   onSelect: (index: number) => void;
-  /** Variante resserrée pour la vue Liste : mêmes positions, moins de bavardage autour. */
+  /** Variante resserrée pour la vue Liste : mêmes positions, moins de texte autour. */
   compact?: boolean;
 }
 
-/** Chronologie d'un fil, à l'échelle réelle du temps.
- *
- *  Ce que le rail de pastilles qu'elle remplace ne pouvait pas montrer : l'écart entre deux
- *  parutions. Des pastilles équidistantes rendent identiques un fil dont les trois dépêches
- *  tombent en vingt minutes et un fil qui s'étale sur trois semaines — or c'est exactement là
- *  qu'est le signal (qui sort l'information, combien de temps la reprise met à suivre).
+/** Chronologie d'un thread, à l'échelle réelle du temps : l'écart entre deux parutions est le
+ *  signal (qui sort l'information, combien de temps la reprise met à suivre), et des nœuds
+ *  équidistants rendraient identiques trois dépêches en vingt minutes et un dossier de trois
+ *  semaines.
  *
  *  Rendu en HTML positionné plutôt qu'en SVG : les étiquettes sont du texte à taille naturelle,
  *  les nœuds de vrais boutons focusables, et la piste suit la largeur disponible sans mesure. */
 export function ThreadTimeline({ thread, selected, onSelect, compact = false }: Props) {
   const { items, startMs, spanMs } = thread;
 
-  // Un fil dont tous les items portent le même horodatage (flux non datés, tous collectés dans le
-  // même lot) n'a pas d'étalement à représenter. Plutôt que d'en simuler un, la piste bascule en
-  // disposition ordinale et le dit.
+  // Items tous horodatés à l'identique (flux non datés, collectés dans le même lot) : aucun
+  // étalement à représenter, la piste bascule en disposition ordinale et le dit.
   const ordinal = spanMs <= 0;
 
   const layout = useMemo(() => {
@@ -198,7 +194,7 @@ export function ThreadTimeline({ thread, selected, onSelect, compact = false }: 
           {ordinal ? (
             <span>Horodatages identiques — ordre seul, aucune durée mesurable.</span>
           ) : (
-            <span>Étalement du fil : {formatDuration(spanMs)}.</span>
+            <span>Étalement du thread : {formatDuration(spanMs)}.</span>
           )}
           {undated > 0 && (
             <span>

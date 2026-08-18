@@ -415,7 +415,7 @@
       <ul class="points">
         <li><strong class="mark">Le constat.</strong> Le point dur n'est pas de collecter — les outils existent — mais de classer un flux hétérogène de façon homogène, de recouper, et de pouvoir justifier a posteriori pourquoi une information a été retenue.</li>
         <li><strong class="mark">La réponse.</strong> Un pipeline en quatre nœuds où chaque affirmation est adossée à une citation vérifiée verbatim, et où seules les catégories les plus sensibles déclenchent une escalade agentique bornée.</li>
-        <li><strong class="mark">L'état.</strong> V1 fonctionnelle de bout en bout, première tranche du vérificateur V2 livrée, garde-fous codés et testés dans les deux sens — pas seulement déclarés.</li>
+        <li><strong class="mark">L'état.</strong> V1 fonctionnelle de bout en bout, première tranche du vérificateur V2 et premier étage du raisonnement longitudinal V3 (threads d'événements) livrés, garde-fous codés et testés dans les deux sens — pas seulement déclarés.</li>
         <li><strong class="mark">La recommandation.</strong> Achever la couverture du vérificateur avant le déploiement cloud : un score de confiance partiel est plus utile qu'un score fabriqué, mais moins qu'un score complet.</li>
       </ul>
       <p class="muted-note">Ce qui suit détaille le cadrage, l'architecture et les preuves — dans cet ordre.</p>
@@ -484,8 +484,10 @@
         <div class="pipe-node"><span class="k">Analyse</span><p>classification + résumé + citation vérifiée</p></div>
         <div class="pipe-arrow">→</div>
         <div class="pipe-node"><span class="k">Vérification</span><p>recoupement + score de confiance, boucle d'outil bornée</p></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-node"><span class="k">Regroupement</span><p>threads d'événements sur l'historique, même boucle bornée</p></div>
       </div>
-      <p class="muted-note" style="margin-top:18px">État partagé (<code>VeilleState</code>) entre les nœuds, chaque nœud tracé nativement — sans instrumentation manuelle. Les trois premiers nœuds sont un workflow déterministe ; seul le vérificateur laisse le modèle décider de ses propres appels d'outil, sous double plafond.</p>
+      <p class="muted-note" style="margin-top:18px">État partagé (<code>VeilleState</code>) entre les nœuds, chaque nœud tracé nativement — sans instrumentation manuelle. Les trois premiers nœuds sont un workflow déterministe ; les deux derniers laissent le modèle décider de ses propres appels d'outil, chacun sous double plafond codé — un nœud agentique de plus n'est pas un plafond de plus à oublier.</p>
       <p class="muted-note" style="margin-top:6px">Ce qui survit aux runs — budget LLM, liens vus, historique analysé — passe par une couche de persistance unique, fichiers locaux en développement et Firestore en production. Le digest servi est une fenêtre glissante sur cet historique, pas la photographie du dernier run : le dédoublonnage vidant les collectes suivantes, servir le run brut effacerait l'affichage à chaque passage.</p>
     </div>
   </section>
@@ -511,6 +513,18 @@
         <img src="screenshot-map.png" alt="Carte de couverture géographique, construite sur le lieu vérifié de chaque événement, avec le décompte des items sans lieu extrait et des lieux non rattachables à un pays." loading="lazy" />
       </figure>
       <p class="muted-note">Construite sur le lieu vérifié de l'événement, pas sur le pays de la source. Les items sans lieu extractible et les lieux non rattachables à un pays (espaces maritimes, commandements) sont comptés explicitement : une carte qui ne montrerait que ses succès surestimerait la couverture réelle.</p>
+    </div>
+  </section>
+
+  <section class="slide" id="s5d">
+    <span class="slide-id"></span>
+    <div class="slide-inner">
+      <p class="eyebrow">Synthèse</p>
+      <h2>Le thread rend lisible ce qui se joue entre les articles</h2>
+      <figure class="shot">
+        <img src="screenshot-threads.png" alt="Vue Threads : un dossier suivi par trois sources, sa chronologie à l'échelle réelle du temps, et le croisement entre pays du média et pays de l'événement." loading="lazy" />
+      </figure>
+      <p class="muted-note">Un thread relie les articles d'un même dossier — mêmes parties, même opération — et non d'un même thème. La chronologie est à l'échelle réelle du temps : l'écart entre les parutions <em>est</em> le signal, et des repères équidistants rendraient identiques trois dépêches en vingt minutes et un dossier étalé sur trois semaines. Aucun score agrégé n'est produit au niveau du thread — moyenner des scores partiellement absents comblerait par un calcul un vide laissé volontairement.</p>
     </div>
   </section>
 
@@ -636,7 +650,11 @@
       </div>
       <div class="roadmap-row">
         <span class="stage">V3</span>
-        <div><span class="status-dot later"></span>Raisonnement longitudinal : fils d'événements, brief hebdomadaire, détection de signal faible — le signal d'une veille se situe largement entre les items, pas dans l'item isolé</div>
+        <div><span class="status-dot done"></span>Raisonnement longitudinal, 1<sup>re</sup> tranche : threads d'événements — le signal d'une veille se situe largement entre les items, pas dans l'item isolé</div>
+      </div>
+      <div class="roadmap-row">
+        <span class="stage">V3</span>
+        <div><span class="status-dot later"></span>Brief hebdomadaire et détection de signal faible — chiffres issus d'une agrégation, jamais du modèle ; alerte gardée par un taux de fausses alertes mesuré avant exposition</div>
       </div>
       <div class="roadmap-row">
         <span class="stage">V3</span>
