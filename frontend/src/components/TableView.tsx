@@ -47,7 +47,7 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
             <th scope="col">Source</th>
             <th scope="col">Lieu</th>
             <th scope="col">Confiance</th>
-            <th scope="col">Recoupement</th>
+            <th scope="col">Antécédent</th>
           </tr>
         </thead>
         <tbody>
@@ -92,7 +92,7 @@ export function TableView({ items }: { items: AnalyzedItem[] }) {
                 </td>
                 <td className="num">{item.confidence_score?.toFixed(2) ?? "non vérifié"}</td>
                 <td>
-                  {item.corroborated === null ? "—" : item.corroborated ? "recoupé" : "source unique"}
+                  {item.corroborated === null ? "—" : item.corroborated ? "avec antécédent" : "sans antécédent"}
                 </td>
               </tr>
             );

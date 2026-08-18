@@ -1,5 +1,7 @@
-import type { AnalyzedItem } from "../types";
+import type { AnalyzedItem, Category } from "../types";
 import { publishedMs } from "./filters";
+import { computeCoverage, type Coverage } from "./coverage";
+import { VERIFIER_CATEGORIES } from "./taxonomy";
 
 /** Un groupe d'un seul item est un item autonome ; un groupe de plusieurs est un fil. Le composant
  *  de rendu décide comment traiter chaque cas — cette fonction ne fait que regrouper. */
@@ -39,4 +41,143 @@ export function groupThreads(items: AnalyzedItem[]): ThreadGroup[] {
   }
 
   return groups;
+}
+
+/** Sur quoi repose la position d'un item dans le temps. `publishedMs` retombe sur `first_seen`
+ *  quand le flux ne date pas l'article — repli indispensable au tri, mais que l'affichage ne doit
+ *  jamais présenter comme une date de parution : `first_seen` est un horodatage de lot, partagé
+ *  par tous les items d'un même run. Les confondre sur un axe temporel ferait lire une collecte
+ *  groupée comme une salve de publications simultanées. */
+export type DateOrigin = "published" | "first_seen";
+
+export function dateOrigin(item: AnalyzedItem): DateOrigin {
+  const t = item.published ? new Date(item.published).getTime() : NaN;
+  return Number.isNaN(t) ? "first_seen" : "published";
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** Durée écoulée, en français, sans jamais arrondir à zéro : deux parutions séparées de quelques
+ *  secondes sont quasi simultanées, ce que « 0 min » ferait lire comme « en même temps ». */
+export function formatDuration(ms: number): string {
+  if (ms < MINUTE) return "moins d'une minute";
+  if (ms < HOUR) return `${Math.round(ms / MINUTE)} min`;
+  if (ms < DAY) {
+    const h = Math.floor(ms / HOUR);
+    const m = Math.round((ms % HOUR) / MINUTE);
+    return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+  }
+  const d = Math.floor(ms / DAY);
+  const h = Math.round((ms % DAY) / HOUR);
+  return h === 0 ? `${d} j` : `${d} j ${h} h`;
+}
+
+export interface SourceCountryBucket {
+  count: number;
+  /** Nombre d'articles de ce pays émanant d'un média d'État — pas un booléen : deux dépêches
+   *  d'agence officielle sur cinq articles ne se lit pas comme cinq sur cinq. */
+  stateAffiliated: number;
+}
+
+/** Agrégat dérivé d'un groupe d'items partageant un `thread_id`. Il n'existe aucun objet fil côté
+ *  backend (`backend/agents/threader.py` ne fait qu'écrire l'identifiant sur des items) : ce modèle
+ *  est calculé côté client, une fois, pour que la chronologie, la provenance et l'en-tête décrivent
+ *  le même fil au lieu de le recalculer chacun de leur côté — la divergence que `computeCoverage`
+ *  a déjà eu à corriger entre la carte et la bande de KPI.
+ *
+ *  Ce qui est délibérément absent : tout score agrégé. Pas de moyenne de confiance, pas d'indice de
+ *  fiabilité du fil. `confidence_score` et `corroborated` valent `null` sur les items que le
+ *  vérificateur n'a pas escaladés, et CLAUDE.md interdit de combler ce vide par une heuristique —
+ *  une moyenne le comblerait implicitement, en faisant passer un fil non vérifié pour un fil
+ *  moyennement fiable. On expose la distribution, l'affichage la rend telle quelle. */
+export interface ThreadModel {
+  id: string;
+  /** Chronologique croissant. */
+  items: AnalyzedItem[];
+  /** Premier paru : qui sort l'information. */
+  breaker: AnalyzedItem;
+  /** Plus récent : porte le titre et la catégorie du fil. */
+  lead: AnalyzedItem;
+  category: Category;
+  startMs: number;
+  endMs: number;
+  spanMs: number;
+  /** Items réellement datés par leur flux. Le complément est positionné par `first_seen`. */
+  datedByPublication: number;
+  /** Sources distinctes, dans l'ordre de première parution. */
+  sources: string[];
+  /** Pays des médias — jamais mélangé au pays de l'événement (`coverage`). Les confondre
+   *  rattacherait une dépêche TASS sur le Yémen à la Russie (cf. `resolveLocation`, lib/geo.ts). */
+  sourceCountries: Map<string, SourceCountryBucket>;
+  /** Lieu des événements, avec les trois niveaux de provenance et les échecs de rattachement. */
+  coverage: Coverage;
+  scored: AnalyzedItem[];
+  corroborated: number;
+  singleSource: number;
+  /** Non scorés alors que leur catégorie est escaladable : le plafond du run les a laissés de côté. */
+  unscoredInScope: number;
+  /** Non scorés parce que hors du périmètre du vérificateur — ce n'est pas un manque. */
+  unscoredOutOfScope: number;
+}
+
+/** Construit le modèle d'un fil. Attend un groupe d'au moins deux items partageant un `thread_id`
+ *  (ce que produit `groupThreads`) ; retrie par sécurité, l'ordre chronologique étant le seul
+ *  invariant dont tout le rendu dépend. */
+export function buildThread(group: AnalyzedItem[]): ThreadModel {
+  const items = [...group].sort((a, b) => publishedMs(a) - publishedMs(b));
+  const breaker = items[0];
+  const lead = items[items.length - 1];
+
+  const sources: string[] = [];
+  const sourceCountries = new Map<string, SourceCountryBucket>();
+  let datedByPublication = 0;
+  let corroborated = 0;
+  let singleSource = 0;
+  let unscoredInScope = 0;
+  let unscoredOutOfScope = 0;
+
+  for (const item of items) {
+    if (!sources.includes(item.source)) sources.push(item.source);
+
+    let bucket = sourceCountries.get(item.country);
+    if (!bucket) {
+      bucket = { count: 0, stateAffiliated: 0 };
+      sourceCountries.set(item.country, bucket);
+    }
+    bucket.count += 1;
+    if (item.state_affiliated) bucket.stateAffiliated += 1;
+
+    if (dateOrigin(item) === "published") datedByPublication += 1;
+    if (item.corroborated === true) corroborated += 1;
+    if (item.corroborated === false) singleSource += 1;
+    if (item.confidence_score === null) {
+      if (VERIFIER_CATEGORIES.has(item.category)) unscoredInScope += 1;
+      else unscoredOutOfScope += 1;
+    }
+  }
+
+  const startMs = publishedMs(breaker);
+  const endMs = publishedMs(lead);
+
+  return {
+    id: breaker.thread_id ?? lead.link,
+    items,
+    breaker,
+    lead,
+    category: lead.category,
+    startMs,
+    endMs,
+    spanMs: endMs - startMs,
+    datedByPublication,
+    sources,
+    sourceCountries,
+    coverage: computeCoverage(items),
+    scored: items.filter((i) => i.confidence_score !== null),
+    corroborated,
+    singleSource,
+    unscoredInScope,
+    unscoredOutOfScope,
+  };
 }

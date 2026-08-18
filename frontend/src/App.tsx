@@ -1,15 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiUnreachable, NoDigestYet, fetchDigest, triggerRun } from "./api";
 import type { AnalyzedItem, Digest } from "./types";
-import { EMPTY_FILTERS, applyFilters, sortItems, type Filters, type SortKey } from "./lib/filters";
-import { groupThreads } from "./lib/threads";
+import {
+  EMPTY_FILTERS,
+  applyFilters,
+  hasActiveFilters,
+  sortItems,
+  type Filters,
+  type SortKey,
+} from "./lib/filters";
+import { buildThread, groupThreads } from "./lib/threads";
 import { FilterRail } from "./components/FilterRail";
 import { KpiStrip } from "./components/KpiStrip";
 import { ItemCard } from "./components/ItemCard";
 import { ThreadGroupCard } from "./components/ThreadGroup";
+import { ThreadDetail } from "./components/ThreadDetail";
 import { WorldMap } from "./components/WorldMap";
 import { TableView } from "./components/TableView";
-import { ListIcon, MapIcon, MoonIcon, RefreshIcon, SunIcon, TableIcon } from "./components/Icons";
+import {
+  ListIcon,
+  MapIcon,
+  MoonIcon,
+  RefreshIcon,
+  SunIcon,
+  TableIcon,
+  ThreadIcon,
+} from "./components/Icons";
 
 type Status =
   | { kind: "loading" }
@@ -17,7 +33,7 @@ type Status =
   | { kind: "empty" }
   | { kind: "error"; message: string };
 
-type View = "list" | "map" | "table";
+type View = "list" | "threads" | "map" | "table";
 
 // Référence stable : un littéral `[]` recréé à chaque rendu invaliderait les mémos en aval.
 const NO_ITEMS: AnalyzedItem[] = [];
@@ -129,6 +145,13 @@ export default function App() {
 
   const items = status.kind === "ready" ? status.digest.items : NO_ITEMS;
   const visible = useMemo(() => sortItems(applyFilters(items, filters), sort), [items, filters, sort]);
+  // Les fils sont construits sur les items *filtrés* : un filtre peut ramener un fil sous les deux
+  // articles qui le définissent, auquel cas il n'en est plus un et disparaît de l'onglet. C'est le
+  // comportement voulu — mais il doit être dit, d'où la mention affichée quand un filtre est actif.
+  const threads = useMemo(
+    () => groupThreads(visible).filter((group) => group.length > 1).map(buildThread),
+    [visible],
+  );
 
   return (
     <div className="app">
@@ -230,6 +253,10 @@ export default function App() {
                 <button aria-pressed={view === "list"} onClick={() => setView("list")}>
                   <ListIcon /> Liste
                 </button>
+                <button aria-pressed={view === "threads"} onClick={() => setView("threads")}>
+                  <ThreadIcon /> Fils
+                  {threads.length > 0 && <span className="seg-count">{threads.length}</span>}
+                </button>
                 <button aria-pressed={view === "map"} onClick={() => setView("map")}>
                   <MapIcon /> Carte
                 </button>
@@ -305,11 +332,44 @@ export default function App() {
               </div>
             ) : view === "table" ? (
               <TableView items={visible} />
+            ) : view === "threads" ? (
+              threads.length === 0 ? (
+                <div className="state">
+                  <h2>Aucun fil sur cette période</h2>
+                  <p>
+                    Un fil naît du rapprochement d'au moins deux articles traitant du même dossier.
+                    La plupart des items restent isolés : c'est l'état normal d'une veille, pas une
+                    anomalie. Les fils apparaîtront ici à mesure que l'historique s'accumule.
+                  </p>
+                  {hasActiveFilters(filters) && (
+                    <button className="btn btn-ghost" onClick={() => setFilters(EMPTY_FILTERS)}>
+                      Réinitialiser les filtres
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="list">
+                  {hasActiveFilters(filters) && (
+                    <p className="note">
+                      Les fils sont reconstruits sur les items filtrés : un article exclu par un
+                      filtre est absent de sa chronologie, et un fil réduit à un seul article n'est
+                      plus affiché ici.
+                    </p>
+                  )}
+                  {threads.map((thread) => (
+                    <ThreadDetail key={thread.id} thread={thread} />
+                  ))}
+                </div>
+              )
             ) : (
               <div className="list">
                 {groupThreads(visible).map((group) =>
                   group.length > 1 ? (
-                    <ThreadGroupCard key={group[0].thread_id} items={group} />
+                    <ThreadGroupCard
+                      key={group[0].thread_id}
+                      items={group}
+                      onOpen={() => setView("threads")}
+                    />
                   ) : (
                     <ItemCard key={group[0].link} item={group[0]} />
                   ),

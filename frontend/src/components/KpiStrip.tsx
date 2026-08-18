@@ -45,7 +45,7 @@ export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
 
       <div className="kpi">
         <span className="kpi-value">{scored.length === 0 ? "—" : corroborated.length}</span>
-        <span className="kpi-label">Recoupés par l'historique</span>
+        <span className="kpi-label">Avec antécédent dans l'historique</span>
         <span className="kpi-note">
           {scored.length === 0
             ? "sans objet : aucun item vérifié"

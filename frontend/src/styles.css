@@ -523,6 +523,24 @@ button {
   font-weight: 500;
 }
 
+.seg-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink-2);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.segmented button[aria-pressed="true"] .seg-count {
+  background: var(--surface);
+}
+
 .result-count {
   font-size: 13px;
   color: var(--ink-2);
@@ -730,82 +748,459 @@ button {
   display: none;
 }
 
-/* Frise de sources : choisit quel article du fil s'affiche en tête, sans empiler une carte
-   complète par source. Chaque halte porte sa propre confiance (couleur du point) et son
-   recoupement (coche) — le signal que l'empilement de cartes perdait dans la répétition. */
-.thread-rail {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
+.thread-open {
+  margin-top: 10px;
+}
+
+/* ── Chronologie de fil ─────────────────────────────────────────────────── */
+
+/* Remplace le rail de pastilles équidistantes : l'abscisse d'un nœud est proportionnelle à
+   l'instant réel de parution. Des pastilles régulières rendaient identiques un fil bouclé en
+   vingt minutes et un dossier étalé sur trois semaines — or l'écart *est* le signal. En
+   conséquence : on ne déplace jamais un nœud pour désencombrer, on décale son étiquette d'une
+   rangée (--row), la position restant une affirmation sur le temps. */
+
+.tl {
+  margin: 12px 0 0;
   padding-top: 12px;
   border-top: 1px dashed var(--hairline);
 }
 
-.thread-step {
-  display: flex;
-  align-items: center;
+.tl-plot {
+  position: relative;
+  padding: calc(var(--rows, 1) * 34px + 22px) 0 24px;
 }
 
-.thread-step:not(:last-child)::after {
-  content: "";
-  width: 14px;
+/* Piste en retrait : une étiquette centrée sur un nœud d'extrémité déborde de la moitié de sa
+   largeur, la marge lui laisse la place sans la recentrer (ce qui mentirait sur la position). */
+.tl-track {
+  position: relative;
+  height: 0;
+  margin: 0 64px;
+}
+
+.tl-rule {
+  position: absolute;
+  inset: 0 -64px auto;
   height: 1px;
-  margin: 0 2px;
   background: var(--axis);
 }
 
-.thread-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  background: var(--surface-raised);
-  color: var(--ink-2);
-  font-size: 11.5px;
+/* Horodatages tous identiques : il n'y a pas de durée à représenter, l'axe le dit au lieu de
+   simuler un étalement. */
+.tl-rule-ordinal {
+  height: 0;
+  background: none;
+  border-top: 1px dashed var(--axis);
+}
+
+.tl-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+
+.tl-tick i {
+  display: block;
+  width: 1px;
+  height: 5px;
+  margin: 0 auto;
+  background: var(--grid);
+}
+
+.tl-tick em {
+  display: block;
+  margin-top: 3px;
+  font-size: 10.5px;
+  font-style: normal;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.thread-chip:hover {
-  border-color: var(--axis);
+.tl-nodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tl-node {
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+}
+
+.tl-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 128px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.tl-label:hover {
+  border-color: var(--hairline);
+  background: var(--surface-raised);
   color: var(--ink);
 }
 
-.thread-chip[aria-pressed="true"] {
+.tl-label[aria-pressed="true"] {
   border-color: var(--accent);
   background: var(--wash);
   color: var(--ink);
+}
+
+.tl-source {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
   font-weight: 500;
 }
 
-.thread-chip svg {
-  flex: none;
+.tl-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.thread-chip-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex: none;
-  background: var(--dot, var(--ink-muted));
-}
-
-.thread-chip-date {
-  color: var(--ink-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.thread-chip-warn {
+.tl-warn,
+.tl-good {
   display: inline-flex;
+  flex: none;
+}
+
+.tl-warn {
   color: var(--status-warning);
 }
 
-.thread-chip-good {
-  display: inline-flex;
+.tl-good {
   color: var(--status-good);
+}
+
+.tl-when {
+  color: var(--ink-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-stem {
+  width: 1px;
+  height: calc(10px + var(--row, 0) * 34px);
+  background: var(--grid);
+}
+
+.tl-dot {
+  width: 11px;
+  height: 11px;
+  margin-bottom: -6px;
+  border-radius: 50%;
+  background: var(--dot, var(--ink-muted));
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* Article non daté par son flux : positionné sur son entrée en base, jamais présenté comme une
+   parution. L'anneau tireté marque ce statut sans effacer la couleur de confiance. */
+.tl-dot-collected {
+  outline: 1.5px dashed var(--ink-muted);
+  outline-offset: 2px;
+}
+
+.tl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 14px;
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+.tl-first {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+/* ── Provenance d'un fil ────────────────────────────────────────────────── */
+
+/* Deux colonnes qui ne doivent jamais fusionner : à gauche le pays du média, à droite le pays de
+   l'événement. Le rattachement passe par le contenu de l'article, pas par l'origine du média
+   (docs/cadrage.md §11). Le niveau de provenance est porté par la forme du trait, doublée du
+   texte des blocs — jamais par la couleur seule. */
+
+/* Réserve pour les intitulés de colonnes, en padding sur le conteneur et non en marge sur .pv :
+   une marge se serait fondue dans celle du bloc précédent (margin collapsing) et les intitulés,
+   positionnés au-dessus de .pv, seraient allés se poser sur le titre de section. */
+.pv-wrap {
+  padding-top: 24px;
+}
+
+.pv {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(70px, 1.05fr) minmax(110px, 1fr);
+}
+
+.pv-col {
+  position: relative;
+}
+
+.pv-head {
+  position: absolute;
+  top: -19px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.pv-col:last-child .pv-head {
+  right: 0;
+}
+
+/* La hauteur d'un bloc est proportionnelle au nombre d'articles, mais jamais sous le plancher
+   qu'exigent deux lignes de texte : sans lui, un bloc à un seul article se retrouvait rogné en
+   deux par l'overflow. La proportionnalité que l'œil doit lire est celle des rubans. */
+.pv-block {
+  position: absolute;
+  inset: auto 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+
+.pv-block strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.pv-block > span {
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: var(--ink-muted);
+}
+
+.pv-block strong,
+.pv-block > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pv-block-left {
+  border-left: 3px solid var(--axis);
+}
+
+.pv-block-right {
+  align-items: flex-end;
+  border-right: 3px solid var(--axis);
+  text-align: right;
+}
+
+.pv-block-unplaced {
+  border-style: dashed;
+}
+
+.pv-state {
+  display: inline-flex;
+  flex: none;
+  color: var(--status-warning);
+}
+
+/* preserveAspectRatio="none" : la hauteur du viewBox est en pixels, donc l'épaisseur d'un ruban
+   — qui encode le nombre d'articles — reste exacte quelle que soit la largeur disponible ; seule
+   la courbure s'étire. Les bords gardent leur épaisseur via vector-effect, sans quoi le tireté
+   qui distingue les niveaux de provenance se déformerait avec la fenêtre. */
+.pv-flow {
+  display: block;
+  width: 100%;
+}
+
+/* Un fil par article. La quantité se compte, elle ne se jauge plus sur l'épaisseur d'un ruban —
+   et le tireté qui distingue les niveaux de provenance porte enfin sur le trait lui-même. */
+.pv-strand {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.pv-strand-unplaced {
+  stroke: var(--ink-muted);
+}
+
+.pv-strand:hover {
+  stroke: var(--accent);
+  stroke-width: 4.5;
+}
+
+/* Les trois niveaux, toujours listés même à zéro, avec l'échantillon du trait qui les distingue
+   dans le flux : c'est la légende qui rend l'encodage lisible sans survol. */
+.pv-key {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 18px 0 0;
+  padding: 13px 0 0;
+  border-top: 1px solid var(--hairline);
+  list-style: none;
+  font-size: 11.5px;
+}
+
+.pv-key li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv-sample {
+  flex: none;
+}
+
+/* Mêmes épaisseur et bouts ronds que les fils : l'échantillon doit être reconnaissable comme le
+   trait qu'il désigne, pas comme une version amaigrie. */
+.pv-sample line {
+  stroke: var(--ink-2);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.pv-key b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.pv-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.pv-hint {
+  color: var(--ink-muted);
+}
+
+/* Longueur de ligne bornée : ces paragraphes portent les réserves méthodologiques du cadrage,
+   ils doivent rester lus, pas survolés en pleine largeur d'écran. */
+.pv-note {
+  max-width: 84ch;
+  margin-top: 14px;
+}
+
+/* ── Fil déployé ────────────────────────────────────────────────────────── */
+
+.thread-detail {
+  position: relative;
+  padding: 16px 18px 18px 21px;
+  overflow: hidden;
+}
+
+.thread-detail::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--cat, var(--cat-none));
+}
+
+.td-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.td-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.td-title {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.td-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.td-meta .sep {
+  color: var(--ink-muted);
+}
+
+.td-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.td-block {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+.td-block > .panel-title {
+  margin: 0 0 10px;
+}
+
+/* Même fusion que dans .thread : une carte dans une carte se lirait comme deux objets. */
+.thread-detail .card {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.thread-detail .card::before {
+  display: none;
+}
+
+.thread-detail .tl {
+  margin: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 /* ── Jauge de confiance ─────────────────────────────────────────────────── */

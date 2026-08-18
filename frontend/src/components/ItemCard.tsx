@@ -31,18 +31,23 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
 
         <ConfidenceGauge score={item.confidence_score} category={item.category} />
 
+        {/* « Antécédent » et non « recoupé » : le champ dit qu'un article *antérieur* de
+            l'historique traitait déjà du dossier, à l'instant où celui-ci est passé au
+            vérificateur. Le mot « recoupé », lu à côté d'un fil multi-sources, laissait croire à
+            un recoupement entre les articles affichés — que le vérificateur ne fait jamais,
+            `exclude_links` excluant tout le lot en cours (backend/memory/store.py:155). */}
         {item.corroborated === true && (
-          <span className="badge good" title="Au moins un item de l'historique traite du même dossier.">
+          <span className="badge good" title="Au moins un article antérieur de l'historique traite du même dossier.">
             <CheckIcon />
-            Recoupé
+            Avec antécédent
           </span>
         )}
         {item.corroborated === false && (
           <span
             className="badge quiet"
-            title="Aucun item corroborant trouvé dans l'historique (30 jours glissants). Un signal isolé n'est pas pour autant faux — c'est précisément ce que la veille cherche à détecter."
+            title="Aucun article antérieur trouvé sur ce dossier dans l'historique (30 jours glissants), et les items du même lot de collecte ne comptent pas. Un signal isolé n'est pas pour autant faux — c'est précisément ce que la veille cherche à détecter."
           >
-            Source unique
+            Sans antécédent
           </span>
         )}
 
