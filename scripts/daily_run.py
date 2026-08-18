@@ -48,7 +48,12 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from backend.agents.collector import source_freshness
-from backend.config import COLLECTION_LOOKBACK_HOURS, MAX_LLM_CALLS_PER_DAY, SOURCES
+from backend.config import (
+    COLLECTION_LOOKBACK_HOURS,
+    MAX_ITEMS_PER_SOURCE_PER_RUN,
+    MAX_LLM_CALLS_PER_DAY,
+    SOURCES,
+)
 from backend.graph import run_pipeline
 from backend.guardrails import remaining_calls_today
 from backend.memory.persistence import get_persistence
@@ -138,6 +143,22 @@ def main(dry_run: bool) -> int:
     print(f"Couverture : {active_count}/{len(SOURCES)} sources actives dans les {COLLECTION_LOOKBACK_HOURS} h.")
     if silent:
         print(f"  Silencieuse{_s(len(silent))} : {', '.join(silent)}")
+
+    # Contrepartie du plafond par source, à journaliser parce qu'elle est invisible partout ailleurs :
+    # `source_freshness()` mesure le volume *avant* plafonnage, la collecte n'en garde que les plus
+    # récents, et rien dans l'historique analysé ne distingue ensuite « la source n'a rien publié »
+    # de « on a écarté sa queue de flux ». Sans ce chiffre, le KPI de couverture (§7) surestime ce
+    # que la campagne a réellement vu, et l'assiette de l'évaluation à venir n'est pas
+    # interprétable — même raison d'être que le journal des lancements lui-même.
+    dropped = {
+        source.name: freshness[source.name] - (source.max_per_run or MAX_ITEMS_PER_SOURCE_PER_RUN)
+        for source in SOURCES
+        if freshness[source.name] > (source.max_per_run or MAX_ITEMS_PER_SOURCE_PER_RUN)
+    }
+    if dropped:
+        total = sum(dropped.values())
+        detail = ", ".join(f"{name} (-{count})" for name, count in sorted(dropped.items(), key=lambda p: -p[1]))
+        print(f"  Écartés par le plafond par source : {total} item{_s(total)} sur {len(dropped)} flux — {detail}")
 
     if gap_hours is None:
         print("Aucun lancement journalisé auparavant : début de campagne.")
