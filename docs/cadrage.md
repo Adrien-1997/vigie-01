@@ -135,16 +135,16 @@ Le critère décisif n'est pas la vitesse de mise en œuvre initiale mais la cap
 | Temps de traitement | Durée bout en bout par cycle de collecte | < 15 min pour un cycle quotidien |
 | Taux de faux positifs jugés critiques | % d'événements remontés comme prioritaires mais jugés non pertinents par l'analyste | À suivre dès les premiers retours humains |
 
-**État au 2026-08-18.** Valeurs courantes, pour ne pas avoir à traverser l'historique ci-dessous — qui reste la trace de comment on y est arrivé, réserves méthodologiques incluses.
+**État au 2026-08-19.** Valeurs courantes, pour ne pas avoir à traverser l'historique ci-dessous — qui reste la trace de comment on y est arrivé, réserves méthodologiques incluses.
 
 | KPI | Valeur courante | Cible |
 |---|---|---|
-| Couverture des sources | 16/18 = **89 %** (2026-08-18, fenêtre 96 h) | ≥ 90 % — marginalement dessous |
+| Couverture des sources | 16/18 = **89 %** (2026-08-19, fenêtre 96 h) | ≥ 90 % — marginalement dessous |
 | Précision de classification | 51/68 = **75 %** (n=68, 2026-08-16) | ≥ 85 % — **dessous** |
 | → décision de périmètre seule | 58/68 = 85 % (précision 88 %, rappel 83 %, F1 0,86) | atteinte |
 | → catégorie fine, items dans le périmètre | 23/36 = 64 % | — |
-| Temps de traitement | 5,1 à 6,0 min sur 3 lancements journalisés | < 15 min — atteinte |
-| Taux de recoupement | hors d'atteinte pour l'instant : 15 items sur 199 portent le champ (périmètre du vérificateur, deux catégories sur cinq), dont 1 avec antécédent. `corroborated` mesure de surcroît un antécédent dans l'historique, pas un accord entre sources indépendantes — cf. §11 | mesuré, sans cible |
+| Temps de traitement | 5,1 à 7,3 min sur 4 lancements journalisés | < 15 min — atteinte |
+| Taux de recoupement | hors d'atteinte pour l'instant : 19 items sur 234 portent le champ (périmètre du vérificateur, deux catégories sur cinq), dont 1 avec antécédent. `corroborated` mesure de surcroît un antécédent dans l'historique, pas un accord entre sources indépendantes — cf. §11 | mesuré, sans cible |
 | Taux de faux positifs jugés critiques | non mesuré — demande des retours d'analyste que le projet n'a pas encore | à suivre |
 
 **Première mesure de précision (2026-08-11, n=30)** : 27/30 (90 %) en accord brut avec l'annotation humaine, au-dessus de la cible. En reprenant les 3 désaccords contre la définition littérale des catégories plutôt qu'à l'intuition, un seul s'est confirmé comme un vrai gap du classifieur (contenu d'opinion classé à tort dans une catégorie thématique — corrigé, cf. précisions de frontière §4) ; les deux autres reflétaient des définitions de catégorie encore ambiguës à ce moment-là (frontière fusion-acquisition / export-control / analyse financière), depuis clarifiées. Enseignement à retenir : sur un échantillon de cette taille, la mesure de précision est autant un test de la clarté des définitions que de la qualité du classifieur — les deux doivent être auditées ensemble, pas la seconde seule. `n=30` reste insuffisant pour une confiance statistique forte ; à reconduire à plus grande échelle avant de considérer ce KPI comme validé.
@@ -224,7 +224,7 @@ Priorité = Probabilité × Impact ; classement décroissant, les risques Élev�
 
 ## 11. Limites connues
 
-**État au 2026-08-18.** Dix limites sont listées ci-dessous. Trois portent désormais un chiffre plutôt qu'un constat : le vérificateur (15 items sur 199 portent un score, deux catégories sur cinq), la corroboration (1 antécédent sur ces 15), le regroupement en threads (1 thread de 3 items, d'où un critère d'acceptation encore ouvert). Les autres restent qualitatives, et la persistance Firestore n'a toujours pas été exécutée contre une base réelle.
+**État au 2026-08-19.** Dix limites sont listées ci-dessous. Trois portent désormais un chiffre plutôt qu'un constat : le vérificateur (19 items sur 234 portent un score, deux catégories sur cinq), la corroboration (1 antécédent sur ces 19), le regroupement en threads (4 threads, tailles 3/2/2/2, d'où un critère d'acceptation encore ouvert — l'échantillon annoté qu'il demande n'a toujours pas été constitué). Les autres restent qualitatives, et la persistance Firestore n'a toujours pas été exécutée contre une base réelle.
 
 - Le système ne couvre que les sources ouvertes en français/anglais : un angle mort existe sur les sources locales en langue arabe ou russe tant que V1/V2 ne les intègrent pas.
 - La classification par LLM reste probabiliste : le score de confiance affiché est une aide à la priorisation humaine, pas une garantie de véracité.
