@@ -98,9 +98,9 @@ l'ingestion, pas du prompt.
 Deux mesures antérieures (n=30 puis n=88) et les correctifs de définition qu'elles ont déclenchés
 sont détaillés en [§7](docs/cadrage.md). Ce qui n'est **pas** mesuré est dit comme tel : le
 vérificateur n'a produit que 20 scores (catégories sensibles seules, 2 avec antécédent) et le
-regroupement 11 threads. Le critère d'acceptation des threads reste **ouvert** : l'échantillon de
-65 paires qu'il demande a été gelé le 2026-08-20, son annotation manuelle reste à faire — et ce
-qu'il mesurera est une précision, pas un rappel, un dossier que le modèle n'a pas su rapprocher ne
+regroupement 11 threads. Le critère d'acceptation des threads est **atteint** : sur l'échantillon de
+65 paires gelé et annoté le 2026-08-20, les 13 paires intra-thread sont toutes jugées même dossier
+(précision 100 %) — une précision, pas un rappel, un dossier que le modèle n'a pas su rapprocher ne
 produisant aucune paire à annoter.
 
 ## Stack
@@ -227,7 +227,7 @@ Raison d'être de la campagne, fenêtre de rattrapage et KPI de couverture : [`d
 - [~] V2 — agent vérificateur : recoupement et score de confiance livrés sur les catégories sensibles ; extension aux autres catégories et `fetch_full_article` à venir
 - [~] V2 — carte de couverture interactive livrée (filtrage par pays depuis le champ `location`) ; sectorisation par thème à venir
 - [~] V3 — raisonnement longitudinal sur l'historique : le pipeline traitait chaque item isolément, alors qu'une part du signal se situe entre les items (un dossier qui évolue, la fréquence d'un pays qui monte). Cinq tranches séquencées, cadrées en [§10](docs/cadrage.md) :
-  - [~] threads d'événements — regrouper les items d'un même dossier, restitués en chronologie à l'échelle réelle du temps avec le croisement média/lieu de l'événement. Code livré ; critère d'acceptation **non atteint** : l'échantillon de 65 paires est gelé (2026-08-20), l'annotation manuelle reste à faire
+  - [x] threads d'événements — regrouper les items d'un même dossier, restitués en chronologie à l'échelle réelle du temps avec le croisement média/lieu de l'événement. Critère d'acceptation **atteint** (2026-08-20) : précision 100 % sur les 13 paires intra-thread annotées
   - [ ] brief hebdomadaire — tendances de volume par catégorie/pays vs semaine précédente, chiffres issus d'une agrégation et non du modèle
   - [ ] détection de signal faible — concentration inhabituelle d'items corroborés sur un couple pays/catégorie
   - [ ] restitution temporelle — axe de temps des séries de volume, distinct du thread par dossier

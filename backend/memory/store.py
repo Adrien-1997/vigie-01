@@ -179,13 +179,15 @@ def _overlap_score(query_tokens: set[str], record_tokens: set[str], df: Counter[
     curé à la main, ce qui écarte aussi les mots vides *du domaine* (« défense », « drones »,
     « selon ») qu'aucune liste générique ne couvrirait, et n'introduit aucun seuil à calibrer.
 
-    Portée mesurée, à ne pas surestimer : la pondération corrige le *classement* (un tiers des
-    candidats servis au modèle change, 328 évictions sur 89 des 199 items), pas le portillon
-    d'escalade de backend/agents/threader.py, qui reste franchi par 100 % des items avant comme
-    après — sa requête est le titre et le résumé entiers de l'item, assez longs pour partager un
-    token rare avec au moins un des 199 enregistrements quelle que soit la pondération. Rendre ce
-    portillon discriminant demanderait un seuil sur le score, donc un corpus permettant de le
-    régler (cf. backend/eval/candidates.py) : ce n'est pas ce que fait cette fonction.
+    Portée mesurée à l'origine, dépassée depuis : la pondération corrigeait le *classement* (un
+    tiers des candidats servis au modèle change, 328 évictions sur 89 des 199 items) sans rendre le
+    portillon d'escalade de backend/agents/threader.py discriminant — la requête étant le titre et
+    le résumé entiers de l'item, assez longs pour partager un token rare avec au moins un des
+    199 enregistrements quelle que soit la pondération, ce portillon restait franchi par 100 % des
+    items. Un corpus suffisant pour régler un seuil manquait alors (cf. backend/eval/candidates.py).
+    Il a depuis été mesuré et posé : THREAD_GATE_MIN_SCORE dans backend/config.py, appliqué par
+    search_thread_candidates via son paramètre `min_score`, calibré le 2026-08-20 sur l'échantillon
+    annoté backend/eval/pairs.json (cf. son historique dans backend/eval/score_pairs.py).
 
     Sous trois items, la pondération est dégénérée, et la borne se dérive plutôt que se règle : un
     token partagé par un item et une requête issue d'un autre item a `df >= 2`, donc dans une
@@ -250,7 +252,7 @@ def analyzed_window(days: int = RELATED_ITEMS_WINDOW_DAYS) -> dict[str, dict]:
     return {r["link"]: r for r in get_persistence().analyzed_since(_cutoff(days))}
 
 
-def search_thread_candidates(query: str, exclude_link: str, limit: int = 5) -> list[dict]:
+def search_thread_candidates(query: str, exclude_link: str, limit: int = 5, min_score: float = 0.0) -> list[dict]:
     """Recherche par chevauchement de mots-clés pondéré IDF pour le nœud thread (V3 tranche 1, cf.
     backend/agents/threader.py) — même primitive que search_related, fonction séparée plutôt que
     paramètre supplémentaire pour ne rien changer au comportement déjà testé du vérificateur.
@@ -258,8 +260,16 @@ def search_thread_candidates(query: str, exclude_link: str, limit: int = 5) -> l
     Deux différences volontaires avec search_related : `exclude_link` ne porte que le lien de
     l'item courant, pas tout le lot du run (un fil n'exige pas de confirmation indépendante dans le
     temps comme la corroboration — deux sources qui couvrent le même événement le même jour sont le
-    cas le plus net de « même dossier ») ; le résultat inclut `link` et `thread_id` pour que
-    l'appelant puisse rattacher un dossier à l'enregistrement historique retrouvé.
+    cas le plus net de « même dossier ») ; le résultat inclut `link`, `thread_id` et `score` pour que
+    l'appelant puisse rattacher un dossier à l'enregistrement historique retrouvé et, pour `score`,
+    appliquer le portillon d'escalade de backend/agents/threader.py.
+
+    `min_score` filtre en plus du `score > 0` déjà appliqué, mais seulement quand la pondération IDF
+    est active (fenêtre >= 3 items, cf. _overlap_score) : sous ce seuil de corpus le score retombe
+    sur un compte brut de tokens partagés, une échelle sur laquelle un seuil mesuré sur corpus
+    pondéré (cf. THREAD_GATE_MIN_SCORE, calibré le 2026-08-20 sur backend/eval/pairs.json) n'a pas de
+    sens — l'ignorer alors préserve le cas canonique du thread (deux sources du même run, historique
+    encore vide, cf. tests/test_threader.py) plutôt que de le rendre inéligible faute de corpus.
     """
     query_tokens = _tokenize(query)
     if not query_tokens:
@@ -267,13 +277,15 @@ def search_thread_candidates(query: str, exclude_link: str, limit: int = 5) -> l
 
     records = get_persistence().analyzed_since(_cutoff(RELATED_ITEMS_WINDOW_DAYS))
     df = _document_frequencies(records)
+    total = len(records)
+    floor = min_score if total >= 3 else 0.0
 
     scored: list[tuple[float, dict]] = []
     for record in records:
         if record["link"] == exclude_link:
             continue
-        score = _overlap_score(query_tokens, _record_tokens(record), df, len(records))
-        if score > 0:
+        score = _overlap_score(query_tokens, _record_tokens(record), df, total)
+        if score > 0 and score >= floor:
             scored.append((score, record))
 
     scored.sort(key=lambda pair: pair[0], reverse=True)
@@ -286,6 +298,7 @@ def search_thread_candidates(query: str, exclude_link: str, limit: int = 5) -> l
             "country": record.get("country", ""),
             "category": record["category"],
             "title_fr": record["title_fr"],
+            "score": score,
         }
-        for _, record in scored[:limit]
+        for score, record in scored[:limit]
     ]

@@ -115,6 +115,37 @@ def test_search_related_prunes_entries_older_than_window(persistence):
     assert store.search_related("Rafale Grèce Dassault", exclude_links={"z"}) == []
 
 
+def test_search_thread_candidates_filters_below_min_score_once_idf_is_active():
+    """THREAD_GATE_MIN_SCORE (backend/config.py) ne peut discriminer qu'une fois la pondération IDF
+    active (fenêtre >= 3 items, cf. _overlap_score) : construit une fenêtre de 3 items où le score
+    du candidat cible est mesurable, puis vérifie que min_score l'inclut ou l'exclut selon sa valeur."""
+    store.record_analyzed(
+        [
+            _analyzed_item("target", "Rafale vendu à la Grèce", "Dassault confirme la vente"),
+            _analyzed_item("filler-1", "Sous-marins nucléaires australiens", "Accord AUKUS signé"),
+            _analyzed_item("filler-2", "Drones Bayraktar en Ukraine", "Livraison confirmée par Kyiv"),
+        ]
+    )
+
+    below = store.search_thread_candidates("Rafale Grèce", exclude_link="query", min_score=100.0)
+    above = store.search_thread_candidates("Rafale Grèce", exclude_link="query", min_score=0.1)
+
+    assert below == []
+    assert [c["link"] for c in above] == ["target"]
+    assert above[0]["score"] > 0
+
+
+def test_search_thread_candidates_ignores_min_score_under_a_degenerate_window():
+    """Sous 3 items, le score retombe sur un compte brut de tokens partagés (cf. _overlap_score) —
+    une échelle différente sur laquelle min_score n'a pas de sens : le seuil est donc ignoré plutôt
+    que d'exclure le cas canonique du thread (deux sources du même run, historique encore vide)."""
+    store.record_analyzed([_analyzed_item("target", "Rafale vendu à la Grèce", "Dassault confirme la vente")])
+
+    results = store.search_thread_candidates("Rafale Grèce", exclude_link="query", min_score=1000.0)
+
+    assert [c["link"] for c in results] == ["target"]
+
+
 def test_record_analyzed_is_not_visible_to_search_before_it_is_called():
     assert store.search_related("Rafale Grèce Dassault", exclude_links={"z"}) == []
 

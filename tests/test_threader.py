@@ -95,6 +95,27 @@ def test_thread_skips_escalation_without_a_free_candidate(monkeypatch):
     assert counter[0] == 0
 
 
+def test_thread_skips_escalation_below_the_gate_score_once_idf_is_active(monkeypatch):
+    """THREAD_GATE_MIN_SCORE (backend/config.py, posé le 2026-08-20 sur backend/eval/pairs.json) est
+    appliqué au portillon, pas seulement « au moins un candidat » : dans une fenêtre >= 3 items où
+    le seul candidat partage un score IDF mesurable mais loin sous le seuil, aucun appel LLM ne part."""
+    counter = [0]
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion(), invoke_counter=counter)
+    store.record_analyzed(
+        [
+            _analyzed_item("c", title_fr="Rafale vendu à la Grèce", summary="Dassault confirme la vente"),
+            _analyzed_item("filler-1", title_fr="Sous-marins nucléaires australiens", summary="Accord AUKUS signé"),
+            _analyzed_item("filler-2", title_fr="Drones Bayraktar en Ukraine", summary="Livraison confirmée par Kyiv"),
+        ]
+    )
+
+    item = _analyzed_item("a", title_fr="Rafale Grèce", summary="contrat")
+    result = threader.thread_events({"raw_items": [], "analyzed_items": [item]})
+
+    assert result["analyzed_items"][0]["thread_id"] is None
+    assert counter[0] == 0
+
+
 def test_thread_assigns_a_shared_thread_id_to_a_matching_historical_item(monkeypatch):
     store.record_analyzed(
         [_analyzed_item("c", title_fr="Rafale vendu à la Grèce", summary="Dassault livre des Rafale")]

@@ -42,24 +42,34 @@ Les nœuds `collect`/`deduplicate`/`analyze` forment un chemin de code fixe : un
 
 ## Le regroupement en threads réutilise ce patron, avec deux divergences assumées
 
-Contrairement au vérificateur, le nœud `thread` n'applique aucun filtre par catégorie : `hors_perimetre` n'atteint jamais `analyzed_items`, donc tout item qui arrive là est déjà éligible à être rattaché à un dossier. Et il n'exclut pas le lot en cours — deux sources qui couvrent le même événement le même jour sont au contraire le cas le plus net de « même dossier », là où la corroboration du vérificateur exige une confirmation indépendante dans le temps. L'escalade est précédée d'un filtre gratuit (existence d'au moins un candidat au chevauchement de mots-clés) plutôt que d'un seuil de similarité : l'historique accumulé est encore trop mince pour en calibrer un, et un seuil non calibré serait un choix arbitraire déguisé en mesure.
+Contrairement au vérificateur, le nœud `thread` n'applique aucun filtre par catégorie : `hors_perimetre` n'atteint jamais `analyzed_items`, donc tout item qui arrive là est déjà éligible à être rattaché à un dossier. Et il n'exclut pas le lot en cours — deux sources qui couvrent le même événement le même jour sont au contraire le cas le plus net de « même dossier », là où la corroboration du vérificateur exige une confirmation indépendante dans le temps. Jusqu'au 2026-08-20, l'escalade était précédée d'un filtre gratuit (existence d'au moins un candidat au chevauchement de mots-clés) plutôt que d'un seuil de similarité : l'historique accumulé était encore trop mince pour en calibrer un, et un seuil non calibré aurait été un choix arbitraire déguisé en mesure.
 
-**Mesure du 2026-08-18, qui corrige la portée du filtre annoncée ci-dessus.** Sur 199 items réels,
-ce filtre est franchi par 100 % des items : sa requête étant le titre et le résumé entiers, elle
-partage presque toujours un token avec au moins un enregistrement de la fenêtre. Il ne constitue
-donc pas un second garde-fou — le seul plafond qui borne réellement le coût du nœud est
-`MAX_THREAD_ESCALATIONS_PER_RUN`. Le score de chevauchement est en revanche pondéré depuis la même
-date par la rareté des mots dans la fenêtre (IDF) : le comptage brut était dominé par les mots
-vides, 64 % du score étant porté par des tokens présents dans plus d'un cinquième du corpus, et un
-tiers des candidats servis au modèle a changé. Cela corrige le classement, pas le portillon, et ne
-dit rien de la qualité du regroupement — la vérité terrain se limite à un seul thread.
+**Mesure du 2026-08-18.** Sur 199 items réels, ce filtre gratuit était franchi par 100 % des items :
+sa requête étant le titre et le résumé entiers, elle partage presque toujours un token avec au moins
+un enregistrement de la fenêtre. Il ne constituait donc pas un second garde-fou. Le score de
+chevauchement a en revanche été pondéré depuis la même date par la rareté des mots dans la fenêtre
+(IDF) : le comptage brut était dominé par les mots vides, 64 % du score étant porté par des tokens
+présents dans plus d'un cinquième du corpus, et un tiers des candidats servis au modèle a changé —
+cela corrigeait le classement, pas le portillon.
+
+**Seuil posé le 2026-08-20**, une fois la campagne d'accumulation close et un échantillon de
+65 paires annoté à la main (§ ci-dessous, `backend/eval/pairs.json`). Repondérée par la population
+réelle de chaque bande de score, la précision estimée passe de 20,2 % à ≥ 10 (le filtre gratuit en
+pratique) à 64,7 % à ≥ 20. `THREAD_GATE_MIN_SCORE = 20` (`backend/config.py`) remplace donc le
+filtre gratuit, appliqué par `search_thread_candidates` via son paramètre `min_score` — mais
+seulement quand la pondération IDF est active (fenêtre ≥ 3 items) : en dessous, le score retombe sur
+un compte brut de tokens partagés, une échelle sur laquelle ce seuil n'a pas de sens, et le filtre
+garde son ancien comportement pour ne pas exclure le cas canonique du thread (deux sources du même
+run, historique encore vide). Le score de chevauchement, lui, ne dit rien de la qualité du
+regroupement pris isolément — la vérité terrain se limite à un seul thread ; c'est l'annotation des
+paires intra-thread, pas ce score, qui mesure la précision du threading (100 % sur 13/13, § ci-dessous).
 
 ## Garde-fous, implémentés dès V1
 
 - `backend/guardrails.py` — plafond d'appels LLM par jour, testé dans les deux sens (déclenchement réel vérifié, run normal non affecté). Couvre aussi les appels du vérificateur, sans compteur séparé. Atteint, il **tronque** le run au lieu de l'annuler : les items déjà analysés sont enregistrés et servis, ceux qui n'ont pas été soumis au modèle restent collectables au cycle suivant, et l'API répond un succès partiel explicite (`truncated`) plutôt qu'une erreur — sans quoi le garde-fou de coût détruirait le travail qu'il vient de faire payer
 - `backend/graph.py` — plafond de steps par run (`MAX_STEPS_PER_RUN`), appliqué via le `recursion_limit` LangGraph — protection contre une boucle d'agent incontrôlée (cadrage §8), testée dans les deux sens
 - `backend/agents/verifier.py` — double plafond sur l'escalade agentique : nombre d'items escaladés par run et nombre d'itérations d'outil par item. Vérifié en code et non via `MAX_STEPS_PER_RUN`, qui compte les nœuds du graphe et ne borne pas une boucle interne à un nœud
-- `backend/agents/threader.py` — même double plafond (`MAX_THREAD_ESCALATIONS_PER_RUN`, `MAX_THREAD_STEPS_PER_ITEM`), sans compteur de budget distinct : le regroupement passe par le garde-fou quotidien commun. Le plafond par run y est plus haut que celui du vérificateur, l'éligibilité étant plus large (cinq catégories contre deux), et il est précédé d'un filtre gratuit qui écarte sans aucun appel LLM les items sans candidat dans l'historique
+- `backend/agents/threader.py` — même double plafond (`MAX_THREAD_ESCALATIONS_PER_RUN`, `MAX_THREAD_STEPS_PER_ITEM`), sans compteur de budget distinct : le regroupement passe par le garde-fou quotidien commun. Le plafond par run y est plus haut que celui du vérificateur, l'éligibilité étant plus large (cinq catégories contre deux), et il est précédé d'un portillon sans coût LLM qui n'escalade que les items dont le meilleur candidat atteint `THREAD_GATE_MIN_SCORE` (posé le 2026-08-20, cf. plus bas)
 - `backend/agents/collector.py` — fenêtre de fraîcheur (`COLLECTION_LOOKBACK_HOURS`) : plusieurs flux institutionnels exposent des mois d'historique sans pagination par date ; sans ce filtre, un premier run soumettrait tout l'arriéré au budget quotidien d'un seul coup
 - `backend/agents/collector.py` — plafond par source (`MAX_ITEMS_PER_SOURCE_PER_RUN`, override possible par `Source.max_per_run`) : ajouté le 2026-08-17, mesuré en conditions réelles — sans lui, une agence de presse à cadence élevée (TASS, ~45 items/jour dans la fenêtre alors en vigueur) consommait le budget quotidien à elle seule, au détriment des flux spécialisés à faible volume mais fort signal. Complète la fenêtre de fraîcheur ci-dessus plutôt que de la remplacer : elle borne l'ancienneté, celui-ci borne le volume
 - `backend/agents/analyst.py` — traçabilité systématique : un résumé sans citation vérifiable dans le texte source est rejeté automatiquement, pas seulement signalé
@@ -97,7 +107,7 @@ python -m backend.eval.candidates
 
 La campagne s'est arrêtée le 2026-08-20 à cinq lancements et sept jours continus (261 items), sous les quinze jours visés. Ce n'est pas un abandon en cours de route : la rétention de l'historique a été ramenée le même jour de 30 à 7 jours pour le coût de stockage, ce qui rend l'assiette initialement visée inatteignable par construction — le jour le plus ancien est purgé à chaque run, l'historique ne peut plus jamais dépasser sept jours. Attendre plus longtemps n'aurait produit aucun corpus plus large.
 
-La mesure a donc été prise sur sept jours, et à cette taille elle tranche ce qu'elle devait trancher : le score pondéré IDF discrimine (3 % des items au seuil 40, 12 % à 30, 34 % à 20), là où le portillon en production laisse passer 100 % des items. Ce que sept jours ne donnent pas, c'est le *seuil* lui-même — une échelle qui sépare ne dit pas où couper.
+La mesure a donc été prise sur sept jours, et à cette taille elle tranche ce qu'elle devait trancher : le score pondéré IDF discrimine (3 % des items au seuil 40, 12 % à 30, 34 % à 20), là où le portillon en production laissait passer 100 % des items. Ce que sept jours ne donnaient pas, à ce stade, c'est le *seuil* lui-même — une échelle qui sépare ne dit pas où couper.
 
 D'où la conséquence de méthode, qui vaut pour toute mesure ultérieure : **un corpus doit être gelé hors du stock au moment où il est mesuré**. Une mesure qui relit l'historique à la demande n'est pas rejouable, puisque recalculée une semaine plus tard elle ne retrouve plus aucun des items d'origine — et une annotation manuelle, qui coûte du temps humain, serait perdue avec eux. `backend/eval/build_pairs.py` applique cette règle à l'appariement de dossiers, comme `build_sample.py` le faisait déjà pour la classification : il écrit un échantillon autonome, portant tout le contexte nécessaire à l'annotation et au calcul, et archive toute version déjà annotée avant de la remplacer.
 
@@ -108,3 +118,19 @@ python -m backend.eval.score_pairs      # précision du threading, effet d'un se
 ```
 
 L'échantillon mêle deux populations qui répondent à la même question sans se confondre : les paires que le modèle a effectivement regroupées en threads — toutes, puisque ce sont exactement celles que juge le critère d'acceptation de la V3 tranche 1 — et des paires candidates tirées par bande de score, qui seules permettent de lire où le taux de vrais appariements s'effondre. Les taux sont repondérés par la population réelle de chaque bande au moment du calcul : l'échantillon étant stratifié, un comptage brut sur-pondérerait les bandes hautes, volontairement sur-tirées parce que peu peuplées.
+
+### Résultat, et le seuil qui en découle
+
+Les 65 paires ont été annotées le 2026-08-20. Les 13 paires intra-thread sont toutes jugées même
+dossier — précision 100 %, critère d'acceptation de la V3 tranche 1 atteint. Rappel non mesurable
+par construction : un dossier que le nœud n'a pas su rapprocher ne produit aucune paire à annoter,
+donc ce chiffre dit « ce qui est groupé l'est bien », pas « le threading rapproche tout ce qu'il
+devrait ».
+
+Les 52 paires candidates, elles, calibrent le portillon d'escalade : le taux de vrais appariements
+par bande passe de 0 % (score 0-10) à 12,5 % (10-15), 37,5 % (15-20), 50 % (20-25), 75 % (25-30),
+87,5 % (30-40). Repondérée par la population réelle de chaque bande, la précision estimée d'un
+portillon à ≥ 20 est de 64,7 % sur ~62 paires candidates/semaine, contre 20,2 % à ≥ 10 (le filtre
+gratuit qu'il remplace). `THREAD_GATE_MIN_SCORE = 20` (`backend/config.py`) est la conséquence
+directe de cette mesure, appliqué par `search_thread_candidates` (`backend/memory/store.py`) via son
+paramètre `min_score` — jamais câblé au jugé, exactement ce que cet échantillon devait éviter.

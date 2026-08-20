@@ -22,7 +22,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.config import MAX_THREAD_ESCALATIONS_PER_RUN, MAX_THREAD_STEPS_PER_ITEM
+from backend.config import MAX_THREAD_ESCALATIONS_PER_RUN, MAX_THREAD_STEPS_PER_ITEM, THREAD_GATE_MIN_SCORE
 from backend.guardrails import BudgetExceeded, check_and_increment_llm_call
 from backend.memory.store import analyzed_window, record_analyzed, search_thread_candidates
 from backend.state import AnalyzedItem, VeilleState
@@ -105,18 +105,21 @@ def _thread_item(item: AnalyzedItem) -> str | None:
 def thread_events(state: VeilleState) -> VeilleState:
     """Nœud LangGraph : rattache chaque item à un thread_id partagé avec les items du même dossier.
 
-    Filtre gratuit avant escalade, sans seuil à calibrer (cf. docs/cadrage.md §10 et
-    backend/eval/candidates.py — l'historique accumulé ne suffit pas encore à régler un seuil
-    numérique) : un item n'est escaladé au LLM que s'il existe au moins un candidat dans
-    l'historique (chevauchement de mots-clés non nul), sans quoi il reste thread_id=None sans appel.
-    Plafonné à MAX_THREAD_ESCALATIONS_PER_RUN par run comme le vérificateur.
+    Filtre avant escalade : un item n'est escaladé au LLM que si son meilleur candidat dans
+    l'historique atteint THREAD_GATE_MIN_SCORE (score de chevauchement pondéré IDF, cf.
+    store._overlap_score), sans quoi il reste thread_id=None sans appel. Plafonné en plus à
+    MAX_THREAD_ESCALATIONS_PER_RUN par run comme le vérificateur.
 
-    Mesuré sur 199 items réels : ce filtre est franchi par 100 % des items, y compris après
-    pondération IDF du score (cf. store._overlap_score). La requête étant le titre et le résumé
-    entiers, elle partage presque toujours un token avec au moins un enregistrement de la fenêtre.
-    Le seul plafond qui borne réellement le coût de ce nœud est donc
-    MAX_THREAD_ESCALATIONS_PER_RUN — ce filtre ne doit pas être présenté comme un second garde-fou
-    tant qu'un seuil n'est pas réglé sur un corpus suffisant.
+    Ce seuil remplace le filtre gratuit "au moins un candidat" utilisé jusqu'au 2026-08-20 : mesuré
+    sur 199 items réels, ce filtre-là était franchi par 100 % des items, y compris après pondération
+    IDF du score — la requête étant le titre et le résumé entiers, elle partage presque toujours un
+    token avec au moins un enregistrement de la fenêtre, donc il ne bornait rien. THREAD_GATE_MIN_SCORE
+    a été calibré sur l'échantillon de 65 paires annoté à la main (backend/eval/pairs.json,
+    backend/eval/score_pairs.py) : ≥ 20 retient 64,7 % de vrais appariements estimés, contre 20,2 % à
+    ≥ 10 (l'ancien filtre en pratique). Ce seuil ne s'applique que quand la pondération IDF est
+    active (fenêtre >= 3 items, cf. store.search_thread_candidates) — en dessous, le score est un
+    compte brut sans rapport d'échelle, et le filtre retombe sur "au moins un candidat" pour ne pas
+    rendre inéligible le cas canonique du thread (deux sources du même run, historique encore vide).
 
     La fenêtre d'historique est chargée une fois (verify() a déjà écrit les items du run courant
     avant que ce nœud s'exécute, donc ils y figurent déjà) et tenue à jour en mémoire au fil de la
@@ -133,7 +136,12 @@ def thread_events(state: VeilleState) -> VeilleState:
     touched_links: set[str] = set()
 
     for item in state["analyzed_items"]:
-        probe = search_thread_candidates(f"{item['title_fr']} {item['summary']}", exclude_link=item["link"], limit=1)
+        probe = search_thread_candidates(
+            f"{item['title_fr']} {item['summary']}",
+            exclude_link=item["link"],
+            limit=1,
+            min_score=THREAD_GATE_MIN_SCORE,
+        )
         escalatable = not budget_exhausted and bool(probe) and escalated < MAX_THREAD_ESCALATIONS_PER_RUN
         if not escalatable:
             continue

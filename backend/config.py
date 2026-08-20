@@ -186,6 +186,16 @@ MAX_VERIFIER_STEPS_PER_ITEM = 3
 MAX_THREAD_ESCALATIONS_PER_RUN = 20
 # Plafond d'itérations d'outil par item escaladé, même rôle que MAX_VERIFIER_STEPS_PER_ITEM.
 MAX_THREAD_STEPS_PER_ITEM = 3
+# Seuil sur le score de chevauchement pondéré IDF (backend/memory/store._overlap_score) requis pour
+# escalader un item au modèle — remplace le filtre gratuit "au moins un candidat" utilisé jusqu'ici,
+# franchi par 100 % des items et donc sans effet réel (cf. docs/cadrage.md §10, mesure du 2026-08-18).
+# Posé le 2026-08-20 sur l'échantillon de 65 paires annoté à la main (backend/eval/pairs.json,
+# backend/eval/score_pairs.py) : ≥ 20 retient 64,7 % de vrais appariements estimés contre 20,2 % à
+# ≥ 10, pour un volume d'escalade qui reste confortable sous MAX_THREAD_ESCALATIONS_PER_RUN. Ne
+# s'applique que quand la pondération IDF est active (fenêtre >= 3 items) — sous ce seuil de corpus
+# le score est un compte brut de tokens partagés, une échelle différente sur laquelle ce chiffre n'a
+# pas de sens (cf. backend/memory/store._overlap_score).
+THREAD_GATE_MIN_SCORE = 20.0
 
 # Profondeur par défaut du digest servi par GET /events, en jours. Le digest est une fenêtre
 # glissante sur l'historique analysé (backend/memory/store.py), pas le résultat du dernier run :
