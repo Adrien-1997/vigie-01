@@ -92,3 +92,19 @@ La mesure qu'alimente cette campagne se rejoue ensuite sans aucun appel LLM :
 ```bash
 python -m backend.eval.candidates
 ```
+
+### Clôture, et pourquoi les mesures sont désormais gelées
+
+La campagne s'est arrêtée le 2026-08-20 à cinq lancements et sept jours continus (261 items), sous les quinze jours visés. Ce n'est pas un abandon en cours de route : la rétention de l'historique a été ramenée le même jour de 30 à 7 jours pour le coût de stockage, ce qui rend l'assiette initialement visée inatteignable par construction — le jour le plus ancien est purgé à chaque run, l'historique ne peut plus jamais dépasser sept jours. Attendre plus longtemps n'aurait produit aucun corpus plus large.
+
+La mesure a donc été prise sur sept jours, et à cette taille elle tranche ce qu'elle devait trancher : le score pondéré IDF discrimine (3 % des items au seuil 40, 12 % à 30, 34 % à 20), là où le portillon en production laisse passer 100 % des items. Ce que sept jours ne donnent pas, c'est le *seuil* lui-même — une échelle qui sépare ne dit pas où couper.
+
+D'où la conséquence de méthode, qui vaut pour toute mesure ultérieure : **un corpus doit être gelé hors du stock au moment où il est mesuré**. Une mesure qui relit l'historique à la demande n'est pas rejouable, puisque recalculée une semaine plus tard elle ne retrouve plus aucun des items d'origine — et une annotation manuelle, qui coûte du temps humain, serait perdue avec eux. `backend/eval/build_pairs.py` applique cette règle à l'appariement de dossiers, comme `build_sample.py` le faisait déjà pour la classification : il écrit un échantillon autonome, portant tout le contexte nécessaire à l'annotation et au calcul, et archive toute version déjà annotée avant de la remplacer.
+
+```bash
+python -m backend.eval.build_pairs      # gèle l'échantillon (aucun appel LLM)
+python -m backend.eval.annotate_pairs   # jugement humain : même dossier ?
+python -m backend.eval.score_pairs      # précision du threading, effet d'un seuil
+```
+
+L'échantillon mêle deux populations qui répondent à la même question sans se confondre : les paires que le modèle a effectivement regroupées en threads — toutes, puisque ce sont exactement celles que juge le critère d'acceptation de la V3 tranche 1 — et des paires candidates tirées par bande de score, qui seules permettent de lire où le taux de vrais appariements s'effondre. Les taux sont repondérés par la population réelle de chaque bande au moment du calcul : l'échantillon étant stratifié, un comptage brut sur-pondérerait les bandes hautes, volontairement sur-tirées parce que peu peuplées.

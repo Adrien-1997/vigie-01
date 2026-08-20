@@ -13,11 +13,22 @@ l'assiette soit suffisante. Il n'a pas vocation à survivre à la campagne — e
 déclenchement passe par Cloud Scheduler → Cloud Run (cf. backend/api/main.py).
 
 **Clôture (2026-08-20).** La campagne s'arrête à cinq lancements et sept jours d'historique continu
-(2026-08-14 → 2026-08-20), sous l'assiette de quinze jours visée ci-dessus — décision explicite de
-passer à l'évaluation plutôt que de continuer l'accumulation. Le même jour, la rétention a été
-réduite à 7 jours (`RELATED_ITEMS_WINDOW_DAYS`, cf. backend/memory/store.py) pour limiter le coût de
-stockage : l'historique glissant ne peut donc plus dépasser cette profondeur, et la mesure de
-recoupement ci-dessus ne pourra plus être rejouée à plus grande échelle sur l'historique courant.
+(2026-08-14 → 2026-08-20, 261 items), sous l'assiette de quinze jours visée ci-dessus — décision
+explicite de passer à l'évaluation, la rétention ayant été ramenée le même jour à 7 jours
+(`RELATED_ITEMS_WINDOW_DAYS`, cf. backend/memory/store.py) pour limiter le coût de stockage.
+L'historique glissant ne peut donc plus dépasser cette profondeur : l'assiette de quinze jours est
+désormais inatteignable par construction, et non seulement repoussée.
+
+**La mesure a néanmoins été prise, sur sept jours.** Rejouée le 2026-08-20 sur les 261 items
+(`python -m backend.eval.candidates`), elle donne un signal que les 102 items de trois jours ne
+donnaient pas : au seuil pondéré IDF ≥ 40, 8 items sur 261 (3,1 %) seraient escaladés, et la lecture
+manuelle des meilleures paires y trouve une majorité de vrais appariements de dossier là où la
+mesure précédente n'en trouvait que 2 à 4 sur l'échantillon entier. La conclusion « assiette trop
+mince » ne tient donc plus à cette taille — mais un seuil ne se pose pas sur une lecture à l'œil de
+huit paires. La calibration proprement dite passe par `backend/eval/build_pairs.py`, qui gèle un
+échantillon de paires stratifié par bande de score : c'est lui qui porte désormais la décision, et
+il a dû être construit ce jour-là précisément parce que la purge à 7 jours efface le corpus mesuré.
+
 Le script reste utilisable pour un lancement ponctuel, mais n'est plus piloté vers l'objectif initial.
 
 **Pourquoi un journal, et pourquoi il ne se déduit pas de l'historique analysé.** Un jour sans item

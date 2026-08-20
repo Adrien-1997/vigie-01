@@ -53,6 +53,37 @@ def _norm(value: str) -> str:
     return re.sub(r"\W+", "", (value or "").lower())
 
 
+def weighted_pairs(history: list[dict]) -> tuple[dict[str, float], list[tuple[float, int, int, set[str]]]]:
+    """IDF de la fenêtre, et paires de dates distinctes partageant au moins un token.
+
+    Extrait de `main()` pour servir aussi `backend/eval/build_pairs.py` : l'échantillon annoté doit
+    porter sur exactement le score mesuré ici, et deux implémentations du même calcul divergeraient
+    à la première correction — c'est la raison qui fait déjà importer `_tokenize` plutôt que le
+    réécrire.
+    """
+    n = len(history)
+    raw = [_item_tokens(r) for r in history]
+
+    # IDF calculé sur l'historique lui-même : un token présent partout pèse ~0, un token rare pèse
+    # le maximum. Hypothèse testée : l'identité d'un dossier tient aux tokens rares.
+    df: Counter = Counter()
+    for tokens in raw:
+        df.update(tokens)
+    idf = {tok: math.log(n / (1 + c)) for tok, c in df.items()}
+
+    pairs: list[tuple[float, int, int, set[str]]] = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            # Proxy d'`exclude_links` : le lot du run en cours n'est jamais visible du recoupement.
+            if history[i].get("date") == history[j].get("date"):
+                continue
+            shared = raw[i] & raw[j]
+            if not shared:
+                continue
+            pairs.append((sum(idf[t] for t in shared), i, j, shared))
+    return idf, pairs
+
+
 def _report_thresholds(label: str, best: list[float], thresholds: tuple) -> None:
     total = len(best)
     print(f"--- {label} ---")
@@ -75,34 +106,17 @@ def main(pairs_to_show: int, days: int) -> None:
 
     raw = [_item_tokens(r) for r in history]
     dist = [_distinctive(t) for t in raw]
-
-    # IDF calculé sur l'historique lui-même : un token présent partout pèse ~0, un token rare pèse
-    # le maximum. Hypothèse testée : l'identité d'un dossier tient aux tokens rares.
-    df: Counter = Counter()
-    for tokens in raw:
-        df.update(tokens)
-    idf = {tok: math.log(n / (1 + c)) for tok, c in df.items()}
+    idf, weighted = weighted_pairs(history)
 
     best_raw = [0] * n
     best_dist = [0] * n
     best_idf = [0.0] * n
-    weighted: list[tuple[float, int, int, set[str]]] = []
-
-    for i in range(n):
-        for j in range(i + 1, n):
-            # Proxy d'`exclude_links` : le lot du run en cours n'est jamais visible du recoupement.
-            if history[i].get("date") == history[j].get("date"):
-                continue
-            shared = raw[i] & raw[j]
-            if not shared:
-                continue
-            weight = sum(idf[t] for t in shared)
-            shared_dist = len(dist[i] & dist[j])
-            for idx in (i, j):
-                best_raw[idx] = max(best_raw[idx], len(shared))
-                best_dist[idx] = max(best_dist[idx], shared_dist)
-                best_idf[idx] = max(best_idf[idx], weight)
-            weighted.append((weight, i, j, shared))
+    for weight, i, j, shared in weighted:
+        shared_dist = len(dist[i] & dist[j])
+        for idx in (i, j):
+            best_raw[idx] = max(best_raw[idx], len(shared))
+            best_dist[idx] = max(best_dist[idx], shared_dist)
+            best_idf[idx] = max(best_idf[idx], weight)
 
     _report_thresholds("chevauchement brut (tokenizer réel)", best_raw, (1, 2, 3, 4, 5, 6, 8, 10))
     _report_thresholds("chevauchement, mots vides retirés", best_dist, (1, 2, 3, 4, 5, 6, 8, 10))
