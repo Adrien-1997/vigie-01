@@ -177,17 +177,14 @@ button {
    premier rendu, avant la première mesure — pas de valeur en dur ailleurs. */
 :root {
   --chrome-h: 66px;
-  /* Gabarit de page, partagé par la barre et le corps : c'est ce qui aligne la marque sur le rail
-     et le décompte sur la colonne de contenu. */
-  --page-max: 1280px;
   --gutter: 24px;
 }
 
-/* Bande pleine largeur, contenu calé sur le gabarit. Une largeur maximale posée sur l'élément
-   lui-même aurait aligné le contenu mais rétréci du même coup son fond et son filet, qui se
-   seraient arrêtés au milieu de l'écran au lieu de traverser la barre. */
+/* Gouttière commune aux bandes pleine largeur (barre, pastilles de filtre) et au corps : c'est
+   elle qui aligne la marque sur le rail. Elle reste posée en `padding` et jamais en largeur
+   maximale sur l'élément, qui rétrécirait du même coup son fond et son filet. */
 .page-rule {
-  padding-inline: max(var(--gutter), calc((100% - var(--page-max)) / 2 + var(--gutter)));
+  padding-inline: var(--gutter);
 }
 
 /* Barre de titre, bandeaux de run et barre de commande dans un seul bloc collant. Empilés en
@@ -206,6 +203,21 @@ button {
   gap: 18px;
   flex-wrap: wrap;
   padding-block: 9px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Le fichier de l'icône d'onglet, réutilisé tel quel : la marque n'a qu'une définition, et le seul
+   hex de la palette de marque reste dans le SVG. */
+.brand-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex: none;
 }
 
 .brand strong {
@@ -291,21 +303,18 @@ button {
   color: var(--ink);
 }
 
-/* Plafond de largeur, centré. Sans lui, un écran de 2 366 px étale une carte d'événement sur
-   2 000 px : le résumé tient sur une ligne de 250 caractères, que l'œil ne peut pas suivre d'une
-   fin de ligne au début de la suivante, et les mentions alignées à droite se retrouvent à un mètre
-   de la catégorie qu'elles qualifient. La veille se lit, elle ne se contemple pas en panoramique. */
+/* Le corps occupe toute la largeur de la fenêtre : la carte, le bandeau d'indicateurs et les
+   chronologies de thread gagnent à s'étaler, et un plafond centré laissait deux bandes vides sur
+   un grand écran. Le résumé d'une fiche remplit donc la fiche : une colonne de texte bornée au
+   milieu d'une carte pleine largeur laissait la moitié droite vide, et se lisait comme un défaut
+   de gabarit plutôt que comme un confort de lecture. Les notes méthodologiques gardent en revanche
+   leur longueur de ligne bornée (`.pv-note`, `.state p`) : on les lit en entier ou pas du tout. */
 .body {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
   gap: 24px;
   align-items: start;
-  /* `width` explicite : `.body` est un enfant de flex-column, où une marge automatique sur l'axe
-     transversal annule l'étirement et ramène la boîte à son contenu — la largeur maximale ne
-     s'appliquait qu'à un bloc déjà rétréci à 1 052 px. */
   width: 100%;
-  max-width: var(--page-max);
-  margin: 0 auto;
   padding: 20px var(--gutter) 56px;
 }
 
@@ -348,6 +357,15 @@ button {
 
 .rail::-webkit-scrollbar {
   width: 10px;
+}
+
+/* Chrome sous Windows dessine les boutons fléchés dès qu'un ascenseur est stylé : deux pavés gris
+   venaient couper le haut et le bas du rail, qu'on lisait comme un défaut d'affichage. Le pouce
+   seul suffit à dire qu'il reste des filtres sous le pli. */
+.rail::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .rail::-webkit-scrollbar-track {
@@ -811,22 +829,6 @@ button {
 
 .segmented button[aria-pressed="true"] .seg-count {
   background: var(--surface);
-}
-
-.result-count {
-  white-space: nowrap;
-  font-size: 13px;
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.result-count strong {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.result-of {
-  color: var(--ink-muted);
 }
 
 .commandbar-selects select {
@@ -1752,48 +1754,8 @@ button {
   }
 }
 
-/* Bandeaux de run. Ils empruntaient la classe .topbar, donc sa position collante : trois éléments
-   épinglés au même décalage se recouvraient. Ils vivent maintenant dans le bloc `.chrome`. */
-.notice {
-  padding-block: 10px;
-  border-top: 1px solid var(--hairline);
-  font-size: 13px;
-}
-
-.notice-error {
-  color: var(--status-critical);
-}
-
-.notice-warn {
-  color: var(--status-warning);
-}
-
-.running-bar {
-  height: 2px;
-  background: var(--grid);
-  overflow: hidden;
-}
-
-.running-bar i {
-  display: block;
-  width: 35%;
-  height: 100%;
-  background: var(--accent);
-  animation: slide 1.3s ease-in-out infinite;
-}
-
-@keyframes slide {
-  0% {
-    transform: translateX(-110%);
-  }
-  100% {
-    transform: translateX(320%);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .skeleton,
-  .running-bar i {
+  .skeleton {
     animation: none;
   }
 }
@@ -1832,120 +1794,4 @@ button {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-/* ── Vue tableau (canal d'accessibilité de la palette) ──────────────────── */
-
-/* Cadre à défilement propre, et non un tableau qui s'étire sur toute la hauteur du document :
-   c'est ce qui permet à l'en-tête de coller. `overflow-x: auto` seul faisait déjà du conteneur un
-   port de défilement (la valeur `visible` de l'axe bloc devient `auto`), donc les `th` collants s'y
-   ancraient au lieu de s'ancrer à la fenêtre, et se posaient 114 px trop bas, au milieu des lignes.
-   Puisque le port de défilement est inévitable, autant lui donner une hauteur : les 224 lignes se
-   parcourent sous des intitulés qui ne bougent plus. */
-.table-wrap {
-  overflow: auto;
-  max-height: calc(100dvh - var(--chrome-h) - 40px);
-  overscroll-behavior: contain;
-}
-
-/* En-tête collant : 224 lignes perdent leurs intitulés de colonne au troisième écran, et une
-   colonne « Confiance » sans intitulé est une colonne de nombres nus. */
-.table-wrap thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--surface);
-}
-
-.table-wrap thead th::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 -1px;
-  height: 1px;
-  background: var(--hairline);
-}
-
-.th-sort {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-}
-
-th.num .th-sort {
-  flex-direction: row-reverse;
-}
-
-.th-sort:hover {
-  color: var(--ink);
-}
-
-th[aria-sort="ascending"] .th-sort,
-th[aria-sort="descending"] .th-sort {
-  color: var(--ink);
-}
-
-.sort-icon {
-  flex: none;
-}
-
-/* Seconde ligne de cellule : pays de la source, résolution de lieu, mention « collecté ». */
-.td-sub {
-  color: var(--ink-muted);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-th,
-td {
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid var(--hairline);
-  white-space: nowrap;
-}
-
-th {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
-
-td.num {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-td.wrap {
-  white-space: normal;
-  min-width: 230px;
-}
-
-/* Le lieu tient en deux ou trois mots : lui laisser la largeur du titre poussait la colonne
-   « Antécédent » hors du cadre depuis l'ajout de la date. */
-td.wrap-sm {
-  white-space: normal;
-  min-width: 140px;
-}
-
-td a {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-td a:hover {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }

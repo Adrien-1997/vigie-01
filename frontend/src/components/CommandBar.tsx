@@ -1,22 +1,19 @@
 import type { ReactElement } from "react";
-import { CloseIcon, ListIcon, MapIcon, TableIcon, ThreadIcon } from "./Icons";
+import { CloseIcon, ListIcon, MapIcon, ThreadIcon } from "./Icons";
 import { activeFilterChips, EMPTY_FILTERS, type Filters, type SortKey } from "../lib/filters";
 
-export type View = "list" | "threads" | "map" | "table";
+export type View = "list" | "threads" | "map";
 
 const VIEWS: { key: View; label: string; icon: () => ReactElement }[] = [
   { key: "list", label: "Liste", icon: ListIcon },
   { key: "threads", label: "Threads", icon: ThreadIcon },
   { key: "map", label: "Carte", icon: MapIcon },
-  { key: "table", label: "Tableau", icon: TableIcon },
 ];
 
 interface Props {
   view: View;
   onView: (v: View) => void;
   threadCount: number;
-  visible: number;
-  total: number;
   sort: SortKey;
   onSort: (s: SortKey) => void;
   sortLabels: Record<SortKey, string>;
@@ -29,17 +26,15 @@ interface Props {
 
 /** Commandes de lecture, logées dans la barre de titre elle-même.
  *
- *  Le digest fait 224 items, soit une page d'une cinquantaine de milliers de pixels : tout ce qui
- *  ne colle pas au haut de l'écran est hors de portée dès le troisième article. Le sélecteur de
- *  vue, le décompte, la profondeur et le tri sont exactement ce dont on a besoin *pendant* la
- *  lecture, pas seulement avant. */
+ *  Un digest de deux cents items fait une page d'une cinquantaine de milliers de pixels : tout ce
+ *  qui ne colle pas au haut de l'écran est hors de portée dès le troisième article. Le sélecteur
+ *  de vue, la profondeur et le tri sont exactement ce dont on a besoin *pendant* la lecture, pas
+ *  seulement avant. */
 export function CommandBar(props: Props) {
   const {
     view,
     onView,
     threadCount,
-    visible,
-    total,
     sort,
     onSort,
     sortLabels,
@@ -60,13 +55,6 @@ export function CommandBar(props: Props) {
           </button>
         ))}
       </div>
-
-      <span className="result-count" aria-live="polite">
-        {/* Le dénominateur n'est répété que s'il diffère : « 224 sur 224 » invite à chercher un
-            filtrage qui n'existe pas. */}
-        <strong>{visible}</strong> item{visible > 1 ? "s" : ""}
-        {visible !== total && <span className="result-of"> sur {total}</span>}
-      </span>
 
       <div className="commandbar-selects">
         <label className="sr-only" htmlFor="window">

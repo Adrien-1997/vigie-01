@@ -18,7 +18,7 @@ Le libellé dit « avec / sans antécédent » et non « recoupé ». Le champ m
 
 ## Ce qui survit au défilement
 
-Un digest de sept jours fait deux cents items, soit une page d'une cinquantaine de milliers de pixels. Tout ce qui n'est pas solidaire du haut de l'écran est hors de portée dès le troisième article : le sélecteur de vue, le décompte et la profondeur sont donc logés dans la barre de titre elle-même, qui porte ainsi quelque chose au lieu d'aligner un logo et un bouton de part et d'autre d'un vide.
+Un digest de sept jours fait deux cents items, soit une page d'une cinquantaine de milliers de pixels. Tout ce qui n'est pas solidaire du haut de l'écran est hors de portée dès le troisième article : le sélecteur de vue, la profondeur du digest et le tri sont donc logés dans la barre de titre elle-même, qui porte ainsi quelque chose au lieu d'aligner un logo et un bouton de part et d'autre d'un vide.
 
 Les filtres actifs sont repris en pastilles retirables sous cette barre. La reprise duplique délibérément l'état du rail de filtres : le rail est le lieu où l'on *compose* un filtrage — il porte les compteurs de facette, qui disent ce que chaque facette donnerait si on la sélectionnait — les pastilles celui où on le *lit* et le défait, au moment où l'on en regarde les résultats. Sans elles, un digest filtré à trois items ne se distingue pas d'un digest vide.
 
@@ -26,11 +26,11 @@ Les tuiles d'indicateurs, en revanche, continuent de porter sur l'ensemble du di
 
 Le rail de filtres défile pour lui-même, borné à la hauteur de la fenêtre. Collé sous la barre sans hauteur bornée, il gardait son haut épinglé et poussait son bas — les derniers pays de source, le bouton de réinitialisation — hors de l'écran sans moyen d'y accéder : la molette défilait la page, pas le rail, et le bas ne réapparaissait qu'en fin de document. La borne se calcule sur la hauteur mesurée de la barre, jamais sur une constante, qui se décale dès que celle-ci passe sur deux lignes.
 
-## La mesure de lecture est bornée, la page est centrée
+## La fiche porte ses mentions sur sa ligne de titre
 
-Sur un écran large, une fiche laissée libre étale son résumé sur deux mille pixels : une ligne de deux cent cinquante caractères, que l'œil ne peut pas suivre d'une fin de ligne au début de la suivante. Le gabarit de page est donc plafonné et centré, et les bandes qui traversent l'écran gardent leur fond pleine largeur avec leur contenu calé sur ce même gabarit.
+Le gabarit occupe toute la largeur de la fenêtre. Il a été plafonné et centré un temps, pour borner la longueur de ligne du résumé — sur un très grand écran, elle atteint deux cent cinquante caractères, que l'œil ne suit pas d'une fin de ligne au début de la suivante. Le plafond coûtait plus qu'il ne rapportait : la carte, le bandeau d'indicateurs et les chronologies de thread sont des objets qui gagnent à s'étaler, et deux bandes vides de part et d'autre du digest se lisent comme un défaut de gabarit. Ce qui reste borné, ce sont les notes méthodologiques, qu'on lit en entier ou pas du tout.
 
-Ce plafond détermine en retour la fiche : les mentions de vérification tiennent sur la ligne de titre plutôt que dans une colonne d'aparté. L'aparté a été essayé — il réservait deux cents pixels sur toute la hauteur de la fiche pour une ou deux pastilles et laissait un flanc vide en dessous. Sur la ligne de titre, elles prennent la place qu'elles demandent et rien de plus, tout en restant alignées d'une fiche à l'autre : l'état de vérification est présent sur *tous* les items, le plus souvent « non vérifié » puisque le portillon d'escalade rend ce cas majoritaire, et une information constante ne doit pas occuper la place la plus lisible ni se relire fiche par fiche.
+Les mentions de vérification tiennent sur la ligne de titre de la fiche plutôt que dans une colonne d'aparté. L'aparté a été essayé — il réservait deux cents pixels sur toute la hauteur de la fiche pour une ou deux pastilles et laissait un flanc vide en dessous. Sur la ligne de titre, elles prennent la place qu'elles demandent et rien de plus, tout en restant alignées d'une fiche à l'autre : l'état de vérification est présent sur *tous* les items, le plus souvent « non vérifié » puisque le portillon d'escalade rend ce cas majoritaire, et une information constante ne doit pas occuper la place la plus lisible ni se relire fiche par fiche.
 
 ## Les marques des médias sont collectées, pas empruntées
 

@@ -5,6 +5,17 @@ import { ConfidenceGauge } from "./ConfidenceGauge";
 import { AlertIcon, CheckIcon, PinIcon } from "./Icons";
 import { SourceLogo } from "./SourceLogo";
 
+/* Le niveau de rattachement, dit en toutes lettres à côté du lieu. Il était porté par la vue
+   tableau, retirée le 2026-08-20 : sans cette mention, une fiche placée par déduction du modèle ou
+   par son protagoniste se lisait exactement comme une fiche dont la source nomme le pays. Les
+   quatre niveaux ne se fondent jamais (cf. docs/cadrage.md §11). */
+const PROVENANCE_SUFFIX = {
+  cited: "",
+  deduced: "déduit",
+  actor: "acteur",
+  presumed: "présumé domestique",
+} as const;
+
 function formatDate(published: string): string | null {
   const d = new Date(published);
   if (Number.isNaN(d.getTime())) return null;
@@ -97,6 +108,7 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
             <span className="sep">·</span>
             <span title={placeTitle}>
               <PinIcon /> {place}
+              {match && PROVENANCE_SUFFIX[match.provenance] && ` (${PROVENANCE_SUFFIX[match.provenance]})`}
             </span>
           </>
         )}

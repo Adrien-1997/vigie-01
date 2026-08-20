@@ -1,4 +1,4 @@
-# VEILLE-01 — Agent de veille export & risque défense/géopolitique
+# VIGIE — Agent de veille export & risque défense/géopolitique
 
 [![CI](https://github.com/Adrien-1997/vigie-01/actions/workflows/ci.yml/badge.svg)](https://github.com/Adrien-1997/vigie-01/actions/workflows/ci.yml)
 [![Licence : MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
@@ -11,7 +11,7 @@ Le raisonnement derrière les décisions techniques — garde-fous, invariants d
 restitution, conduite de la campagne — est dans [`docs/decisions.md`](docs/decisions.md). Le cadrage
 produit est dans [`docs/cadrage.md`](docs/cadrage.md).
 
-![Digest VIGIE : barre de commande unique (vues, décompte, profondeur, tri), rail de filtres à gauche, bandeau d'indicateurs, et fiches d'événement portant la citation vérifiée, la marque du média, la provenance « média d'État » et l'état de vérification explicite ; en tête de liste, un thread rassemblant trois sources sur un même dossier](docs/screenshot.png)
+![Digest VIGIE : barre de commande unique (vues, profondeur, tri), rail de filtres à gauche, bandeau d'indicateurs, et fiches d'événement portant la citation vérifiée, la marque du média, la provenance « média d'État » et l'état de vérification explicite ; en tête de liste, un thread rassemblant trois sources sur un même dossier](docs/screenshot.png)
 
 Chaque fiche porte les signaux qui engagent la confiance — citation vérifiée verbatim, antécédent
 trouvé ou non dans l'historique, provenance « média d'État », score du vérificateur — et un item
@@ -155,7 +155,7 @@ vigie/
 │   └── src/
 │       ├── assets/logos/        # marques des médias, collectées hors ligne (cf. scripts/)
 │       ├── components/          # digest filtrable, threads (chronologie + provenance),
-│       │                        #   carte de couverture, vue tableau
+│       │                        #   carte de couverture
 │       └── lib/                 # taxonomie, filtres/tri, résolution des lieux, modèle de thread
 ├── scripts/
 │   ├── daily_run.py             # lancement quotidien + journal de campagne (hors service)
@@ -201,7 +201,7 @@ Les marques des médias affichées sur les fiches sont versionnées avec le fron
 recollectées que si `backend/config.py` gagne une source (`python -m scripts.fetch_logos`, sans
 appel LLM). Une source sans logo s'affiche en monogramme.
 
-Ouvrir `http://localhost:5173`, puis cliquer sur **Lancer la collecte** (déclenche `POST /run` — pipeline complet, ~5 min, consomme du budget LLM réel). L'URL de l'API est `http://localhost:8080` par défaut, surchargeable via `VITE_API_BASE`.
+Ouvrir `http://localhost:5173`. Le front lit le digest, il ne le déclenche pas : la collecte se lance côté serveur, par `python -m scripts.daily_run` ou `POST /run` (pipeline complet, ~5 min, consomme du budget LLM réel). L'URL de l'API est `http://localhost:8080` par défaut, surchargeable via `VITE_API_BASE`.
 
 ## Accumulation d'historique
 

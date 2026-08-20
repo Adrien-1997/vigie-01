@@ -38,13 +38,6 @@ export const PinIcon = () => (
   </svg>
 );
 
-export const RefreshIcon = () => (
-  <svg {...base} width={14} height={14}>
-    <path d="M14 3v4h-4" />
-    <path d="M13.3 7A5.6 5.6 0 1 0 13 10.4" />
-  </svg>
-);
-
 export const ListIcon = () => (
   <svg {...base} width={14} height={14}>
     <path d="M6 4h8M6 8h8M6 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" />
@@ -55,13 +48,6 @@ export const MapIcon = () => (
   <svg {...base} width={14} height={14}>
     <path d="M1.5 4 6 2.2l4 1.8 4.5-1.8v9.6L10 13.6l-4-1.8-4.5 1.8z" />
     <path d="M6 2.2v9.6M10 4v9.6" />
-  </svg>
-);
-
-export const TableIcon = () => (
-  <svg {...base} width={14} height={14}>
-    <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.4" />
-    <path d="M1.8 6.4h12.4M6.6 6.4v6.8" />
   </svg>
 );
 

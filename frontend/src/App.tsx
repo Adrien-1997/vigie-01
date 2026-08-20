@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiUnreachable, NoDigestYet, fetchDigest, triggerRun } from "./api";
+import { ApiUnreachable, NoDigestYet, fetchDigest } from "./api";
 import type { AnalyzedItem, Digest } from "./types";
 import {
   EMPTY_FILTERS,
@@ -17,8 +17,7 @@ import { ItemCard } from "./components/ItemCard";
 import { ThreadGroupCard } from "./components/ThreadGroup";
 import { ThreadDetail } from "./components/ThreadDetail";
 import { WorldMap } from "./components/WorldMap";
-import { TableView } from "./components/TableView";
-import { ArrowUpIcon, MoonIcon, RefreshIcon, SunIcon } from "./components/Icons";
+import { ArrowUpIcon, MoonIcon, SunIcon } from "./components/Icons";
 
 type Status =
   | { kind: "loading" }
@@ -57,10 +56,6 @@ function relativeStamp(iso: string): string {
 
 export default function App() {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
-  const [running, setRunning] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
-  // Distinct de `runError` : un run tronqué a produit et enregistré des items.
-  const [runNotice, setRunNotice] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [view, setView] = useState<View>("list");
   const [sort, setSort] = useState<SortKey>("recent");
@@ -149,27 +144,6 @@ export default function App() {
     void load();
   }, [load]);
 
-  const run = async () => {
-    setRunning(true);
-    setRunError(null);
-    setRunNotice(null);
-    try {
-      const result = await triggerRun();
-      await load();
-      if (result.truncated)
-        setRunNotice(
-          `Plafond de budget LLM atteint : la collecte s'est arrêtée avant la fin du lot. ` +
-            `${result.item_count} item${result.item_count > 1 ? "s" : ""} analysé${result.item_count > 1 ? "s" : ""} ` +
-            `et conservé${result.item_count > 1 ? "s" : ""} ; les articles non traités restent collectables à la prochaine collecte.`,
-        );
-    } catch (e) {
-      if (e instanceof ApiUnreachable) setRunError(`API injoignable sur ${e.message}.`);
-      else setRunError((e as Error).message);
-    } finally {
-      setRunning(false);
-    }
-  };
-
   const items = status.kind === "ready" ? status.digest.items : NO_ITEMS;
   const visible = useMemo(() => sortItems(applyFilters(items, filters), sort), [items, filters, sort]);
   // Construits sur les items *filtrés* : un filtre peut ramener un thread sous les deux articles
@@ -181,15 +155,16 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Un seul bloc collant plutôt que trois empilés au même décalage : les bandeaux de run
-          partagent la position de la barre de titre et se recouvraient au défilement. */}
-      {/* Une seule barre. Séparer une barre de titre d'une barre de commande donnait deux bandes
-          quasi vides sur un écran large — un logo à gauche, un bouton à droite, un vide au milieu —
-          pour 120 px de hauteur volés au digest. La marque, les vues, le décompte et les réglages
-          partagent donc la même ligne : la barre porte enfin quelque chose. */}
+      {/* Une seule barre collante. Séparer une barre de titre d'une barre de commande donnait deux
+          bandes quasi vides sur un écran large — un logo à gauche, un bouton à droite, un vide au
+          milieu — pour 120 px de hauteur volés au digest. La marque, les vues et les réglages
+          partagent donc la même ligne. */}
       <div className="chrome" ref={chromeRef}>
         <header className="topbar page-rule">
           <div className="brand" title="Veille défense & contrôle export">
+            {/* Même fichier que l'icône d'onglet : la marque figurative n'existe qu'à un seul
+                endroit, et ne redéclare pas sa couleur dans un composant. */}
+            <img className="brand-mark" src="/favicon.svg" alt="" width={20} height={20} />
             <strong>VIGIE</strong>
           </div>
 
@@ -198,8 +173,6 @@ export default function App() {
               view={view}
               onView={setView}
               threadCount={threads.length}
-              visible={visible.length}
-              total={items.length}
               sort={sort}
               onSort={setSort}
               sortLabels={SORT_LABEL}
@@ -226,33 +199,11 @@ export default function App() {
             >
               {effectiveTheme === "dark" ? <SunIcon /> : <MoonIcon />}
             </button>
-
-            <button className="btn" onClick={run} disabled={running}>
-              <RefreshIcon />
-              {running ? "Collecte…" : "Collecter"}
-            </button>
           </div>
         </header>
 
         {status.kind === "ready" && <FilterChips filters={filters} onChange={setFilters} />}
 
-        {running && (
-          <div className="running-bar" role="status" aria-label="Collecte en cours">
-            <i />
-          </div>
-        )}
-
-        {runError && (
-          <div className="notice notice-error page-rule" role="alert">
-            {runError}
-          </div>
-        )}
-
-        {runNotice && (
-          <div className="notice notice-warn page-rule" role="status">
-            {runNotice}
-          </div>
-        )}
       </div>
 
       {status.kind === "loading" && (
@@ -270,8 +221,9 @@ export default function App() {
         <div className="state">
           <h2>Aucun digest généré</h2>
           <p>
-            Le pipeline n'a pas encore tourné. « Lancer la collecte » déclenche la collecte RSS,
-            le dédoublonnage, la classification et la vérification — comptez quelques minutes.
+            Le pipeline n'a pas encore tourné. Lancer <code>python -m scripts.daily_run</code>,
+            ou <code>POST /run</code> sur l'API, déclenche la collecte RSS, le dédoublonnage, la
+            classification et la vérification — comptez quelques minutes.
           </p>
         </div>
       )}
@@ -307,8 +259,8 @@ export default function App() {
               <div className="state">
                 <h2>Aucun item sur cette période</h2>
                 <p>
-                  Rien n'a été collecté sur les {status.digest.window_days} derniers jours. Élargir
-                  la période, ou lancer une collecte.
+                  Rien n'a été collecté sur les {status.digest.window_days} derniers jours.
+                  Élargir la période, ou relancer le pipeline.
                 </p>
                 {status.digest.window_days < status.digest.max_window_days && (
                   <button className="btn btn-ghost" onClick={() => setWindowDays(status.digest.max_window_days)}>
@@ -324,8 +276,6 @@ export default function App() {
                   Réinitialiser les filtres
                 </button>
               </div>
-            ) : view === "table" ? (
-              <TableView items={visible} />
             ) : view === "threads" ? (
               threads.length === 0 ? (
                 <div className="state">
