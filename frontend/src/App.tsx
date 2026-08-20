@@ -39,7 +39,7 @@ type View = "list" | "threads" | "map" | "table";
 const NO_ITEMS: AnalyzedItem[] = [];
 
 // Bornées à l'exécution par `max_window_days` : la rétention est décidée côté backend.
-const WINDOW_CHOICES = [1, 7, 14, 30];
+const WINDOW_CHOICES = [1, 3, 7];
 
 const SORT_LABEL: Record<SortKey, string> = {
   recent: "Plus récents",

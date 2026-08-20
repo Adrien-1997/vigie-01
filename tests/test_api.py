@@ -88,9 +88,11 @@ def test_events_returns_an_empty_window_rather_than_404_when_history_exists():
     non vide reste un digest navigable, sinon le sélecteur de période disparaîtrait de l'écran."""
     from datetime import date, timedelta
 
+    from backend.memory import store
     from backend.memory.persistence import get_persistence
 
-    old = (date.today() - timedelta(days=20)).isoformat()
+    # A day within retention (RELATED_ITEMS_WINDOW_DAYS) but outside the narrow queried window.
+    old = (date.today() - timedelta(days=store.RELATED_ITEMS_WINDOW_DAYS - 1)).isoformat()
     get_persistence().put_analyzed([{**FAKE_ITEM, "date": old, "first_seen": old}])
 
     res = _client().get("/events?days=2")

@@ -25,10 +25,12 @@ from .persistence import get_persistence
 
 DEDUP_WINDOW_DAYS = 7
 
-# Plus long que DEDUP_WINDOW_DAYS : le recoupement (a-t-on déjà vu ce dossier ?) bénéficie de plus
-# d'historique que le simple dédoublonnage d'items identiques. Borne aussi la profondeur maximale
-# consultable du digest (cf. backend/api/main.py).
-RELATED_ITEMS_WINDOW_DAYS = 30
+# Alignée sur DEDUP_WINDOW_DAYS depuis le 2026-08-20 : la fenêtre de recoupement était plus longue
+# (30 jours) pour donner plus d'historique au vérificateur, mais conserver au-delà de sept jours
+# coûte du stockage sans bénéfice mesuré — la campagne d'accumulation qui aurait pu le justifier
+# s'arrête ce jour-là. Borne aussi la profondeur maximale consultable du digest (cf.
+# backend/api/main.py) et les choix du sélecteur front (frontend/src/App.tsx, WINDOW_CHOICES).
+RELATED_ITEMS_WINDOW_DAYS = 7
 
 
 def _cutoff(days: int) -> str:

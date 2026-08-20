@@ -85,9 +85,9 @@ Chiffres datés, et non des cibles. Définitions et réserves méthodologiques e
 | Précision de classification (2026-08-16, n=68 annotés) | 51/68 = **75 %** | ≥ 85 % |
 | → décision de périmètre seule (dans / hors) | précision 88 %, rappel 83 % (F1 0,86) | — |
 | → catégorie fine, sur les items jugés dans le périmètre | 23/36 = 64 % | — |
-| Couverture des sources (2026-08-19, fenêtre 96 h) | 16/18 flux actifs | — |
-| Items écartés par le plafond par source (même fenêtre) | 276 sur 7 flux | — |
-| Historique accumulé (2026-08-19) | 234 items sur 6 jours | — |
+| Couverture des sources (2026-08-20, fenêtre 96 h) | 16/18 flux actifs | — |
+| Items écartés par le plafond par source (même fenêtre) | 274 sur 8 flux | — |
+| Historique accumulé (2026-08-20) | 261 items sur 7 jours | — |
 
 La précision globale est **sous la cible**, et sa décomposition est le résultat utile : le filtrage
 du bruit atteint la cible, la qualification fine échoue une fois sur trois, et une seule catégorie

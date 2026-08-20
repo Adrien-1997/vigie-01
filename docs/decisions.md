@@ -30,7 +30,7 @@ Aucun indice de fiabilité agrégé n'est calculé au niveau du thread : moyenne
 
 ## Le digest est une fenêtre glissante, pas la photographie du dernier run
 
-Le dédoublonnage écartant, avant tout appel LLM, ce qui a déjà été vu dans les sept derniers jours, une seconde collecte dans la même journée ne produit qu'une poignée d'items neufs. Servir ce résultat brut reviendrait à effacer l'affichage à chaque collecte. `GET /events` lit donc l'historique des items analysés sur une profondeur paramétrable (`?days=`, bornée par la rétention de 30 jours), et le même historique alimente la recherche de recoupement du vérificateur — un seul stock, deux usages.
+Le dédoublonnage écartant, avant tout appel LLM, ce qui a déjà été vu dans les sept derniers jours, une seconde collecte dans la même journée ne produit qu'une poignée d'items neufs. Servir ce résultat brut reviendrait à effacer l'affichage à chaque collecte. `GET /events` lit donc l'historique des items analysés sur une profondeur paramétrable (`?days=`, bornée par la rétention de 7 jours), et le même historique alimente la recherche de recoupement du vérificateur — un seul stock, deux usages.
 
 ## Persistance : une interface, deux implémentations
 
