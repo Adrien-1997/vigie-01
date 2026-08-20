@@ -8,7 +8,7 @@ const pct = (n: number, d: number) => (d === 0 ? null : `${Math.round((n / d) * 
  *  `hors_perimetre` et ceux dont la citation n'est pas vérifiable verbatim avant de construire
  *  `analyzed_items`. Le front ne voit donc ni le volume collecté ni le volume écarté — aucune
  *  tuile ne doit prétendre le contraire. */
-export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
+export function KpiStrip({ items, filtered }: { items: AnalyzedItem[]; filtered: boolean }) {
   const sources = new Set(items.map((i) => i.source));
   // Ce qui rend un item escaladable n'est plus sa catégorie mais l'existence d'un antécédent
   // candidat dans l'historique (portillon du 2026-08-20) : un digest où rien ne se recoupe a donc
@@ -25,6 +25,17 @@ export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
 
   return (
     <div className="kpis">
+      {/* Les tuiles décrivent le digest entier, jamais la sélection : leurs dénominateurs (items
+          escaladables, items vérifiés) sont ce qui les rend honnêtes, et les recalculer sur un
+          sous-ensemble filtré ferait varier un taux de couverture au gré d'un clic de facette.
+          Reste à le dire — sans cette mention, « 224 » à côté de « 23 items » se lit comme une
+          contradiction depuis que les filtres actifs sont affichés en permanence. */}
+      {filtered && (
+        <p className="kpis-scope">
+          Mesures portant sur l'ensemble du digest — les filtres actifs ne s'y appliquent pas.
+        </p>
+      )}
+
       <div className="kpi">
         <span className="kpi-value">{items.length}</span>
         <span className="kpi-label">Événements retenus</span>

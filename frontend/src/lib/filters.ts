@@ -1,6 +1,6 @@
 import type { AnalyzedItem, Category } from "../types";
-import { CATEGORIES } from "./taxonomy";
-import { countryKey, resolveLocation } from "./geo";
+import { CATEGORIES, CATEGORY_LABEL } from "./taxonomy";
+import { countryKey, countryLabelByKey, resolveLocation, sourceCountryLabel } from "./geo";
 
 export type Verification = "all" | "scored" | "corroborated" | "review";
 export type SortKey = "recent" | "confidence" | "review" | "category";
@@ -120,6 +120,77 @@ export function sortItems(items: AnalyzedItem[], key: SortKey): AnalyzedItem[] {
 function reviewRank(item: AnalyzedItem): number {
   if (item.confidence_score === null) return 2;
   return item.corroborated === true ? 1 : 0;
+}
+
+/** Un filtre actif, rendu retirable individuellement. Les facettes vivent dans le rail, qui sort
+ *  du champ dès qu'on descend dans la liste : sans cette reprise, l'état du filtrage devient
+ *  invisible au moment précis où on lit ses résultats, et un digest filtré se lit comme un digest
+ *  vide. `next` porte le retrait plutôt qu'une clé à interpréter — le composant d'affichage n'a
+ *  pas à connaître la forme de chaque facette. */
+export interface FilterChip {
+  id: string;
+  /** Ce que la facette filtre, pour préfixer la valeur (« Catégorie · Contrôle export »). */
+  facet: string;
+  label: string;
+  next: Filters;
+}
+
+const VERIFICATION_CHIP: Record<Exclude<Verification, "all">, string> = {
+  scored: "Vérifiés",
+  corroborated: "Avec antécédent",
+  review: "À arbitrer",
+};
+
+export function activeFilterChips(f: Filters): FilterChip[] {
+  const chips: FilterChip[] = [];
+  const without = <K extends keyof Filters>(key: K, value: Filters[K]): Filters => ({ ...f, [key]: value });
+
+  if (f.query.trim() !== "")
+    chips.push({ id: "query", facet: "Recherche", label: `« ${f.query.trim()} »`, next: without("query", "") });
+
+  for (const c of CATEGORIES) {
+    if (!f.categories.has(c)) continue;
+    const rest = new Set(f.categories);
+    rest.delete(c);
+    chips.push({ id: `cat:${c}`, facet: "Catégorie", label: CATEGORY_LABEL[c], next: without("categories", rest) });
+  }
+
+  for (const code of [...f.countries].sort((a, b) => sourceCountryLabel(a).localeCompare(sourceCountryLabel(b), "fr"))) {
+    const rest = new Set(f.countries);
+    rest.delete(code);
+    chips.push({
+      id: `country:${code}`,
+      facet: "Source",
+      label: sourceCountryLabel(code),
+      next: without("countries", rest),
+    });
+  }
+
+  if (f.verification !== "all")
+    chips.push({
+      id: "verification",
+      facet: "Vérification",
+      label: VERIFICATION_CHIP[f.verification],
+      next: without("verification", "all"),
+    });
+
+  if (f.stateAffiliated)
+    chips.push({
+      id: "state",
+      facet: "Provenance",
+      label: "Médias d'État seulement",
+      next: without("stateAffiliated", false),
+    });
+
+  if (f.mapCountry !== null)
+    chips.push({
+      id: "map",
+      facet: "Lieu de l'événement",
+      label: countryLabelByKey(f.mapCountry),
+      next: without("mapCountry", null),
+    });
+
+  return chips;
 }
 
 export function countBy<K extends string>(items: AnalyzedItem[], key: (i: AnalyzedItem) => K): Map<K, number> {

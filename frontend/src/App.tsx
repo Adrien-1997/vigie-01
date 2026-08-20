@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiUnreachable, NoDigestYet, fetchDigest, triggerRun } from "./api";
 import type { AnalyzedItem, Digest } from "./types";
 import {
@@ -11,29 +11,20 @@ import {
 } from "./lib/filters";
 import { buildThread, groupThreads } from "./lib/threads";
 import { FilterRail } from "./components/FilterRail";
+import { CommandBar, type View } from "./components/CommandBar";
 import { KpiStrip } from "./components/KpiStrip";
 import { ItemCard } from "./components/ItemCard";
 import { ThreadGroupCard } from "./components/ThreadGroup";
 import { ThreadDetail } from "./components/ThreadDetail";
 import { WorldMap } from "./components/WorldMap";
 import { TableView } from "./components/TableView";
-import {
-  ListIcon,
-  MapIcon,
-  MoonIcon,
-  RefreshIcon,
-  SunIcon,
-  TableIcon,
-  ThreadIcon,
-} from "./components/Icons";
+import { ArrowUpIcon, MoonIcon, RefreshIcon, SunIcon } from "./components/Icons";
 
 type Status =
   | { kind: "loading" }
   | { kind: "ready"; digest: Digest }
   | { kind: "empty" }
   | { kind: "error"; message: string };
-
-type View = "list" | "threads" | "map" | "table";
 
 // Référence stable : un littéral `[]` recréé à chaque rendu invaliderait les mémos en aval.
 const NO_ITEMS: AnalyzedItem[] = [];
@@ -83,6 +74,10 @@ export default function App() {
   const [systemDark, setSystemDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches);
   const effectiveTheme = theme ?? (systemDark ? "dark" : "light");
 
+  const chromeRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+
   useEffect(() => {
     const query = matchMedia("(prefers-color-scheme: dark)");
     const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
@@ -98,6 +93,46 @@ export default function App() {
       delete document.documentElement.dataset.theme;
     }
   }, [theme]);
+
+  // Hauteur réelle de l'en-tête collant, publiée en variable CSS. Le rail et les tableaux s'y
+  // calent : une constante en dur se décale dès que la barre passe sur deux lignes (fenêtre
+  // étroite) ou qu'un bandeau de run s'y ajoute, et le décalage se paie en contenu inatteignable
+  // sous le rail — précisément le défaut que cette version corrige.
+  useEffect(() => {
+    const node = chromeRef.current;
+    if (!node) return;
+    const publish = () =>
+      document.documentElement.style.setProperty("--chrome-h", `${Math.round(node.getBoundingClientRect().height)}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 900);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Raccourcis de dépouillement : « / » pour chercher sans quitter le clavier, Échap pour
+  // ressortir du champ. Ignorés quand la frappe vise déjà un champ de saisie.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLSelectElement;
+      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      } else if (e.key === "Escape" && typing) {
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -146,57 +181,77 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <strong>VIGIE</strong>
-          <span>veille défense &amp; contrôle export</span>
-        </div>
+      {/* Un seul bloc collant plutôt que trois empilés au même décalage : les bandeaux de run
+          partagent la position de la barre de titre et se recouvraient au défilement. */}
+      <div className="chrome" ref={chromeRef}>
+        <header className="topbar">
+          <div className="brand">
+            <strong>VIGIE</strong>
+            <span>veille défense &amp; contrôle export</span>
+          </div>
 
-        <div className="topbar-spacer" />
+          <div className="topbar-spacer" />
 
-        {status.kind === "ready" && status.digest.generated_at && (
-          <span className="stamp">
-            Dernière collecte {relativeStamp(status.digest.generated_at)} ·{" "}
-            {windowLabel(status.digest.window_days)}
-          </span>
+          {status.kind === "ready" && status.digest.generated_at && (
+            <span className="stamp">
+              Dernière collecte {relativeStamp(status.digest.generated_at)} ·{" "}
+              {windowLabel(status.digest.window_days)}
+            </span>
+          )}
+
+          <button
+            className="icon-btn"
+            onClick={() => setTheme(effectiveTheme === "dark" ? "light" : "dark")}
+            aria-label={effectiveTheme === "dark" ? "Passer en thème clair" : "Passer en thème sombre"}
+            title={effectiveTheme === "dark" ? "Thème clair" : "Thème sombre"}
+          >
+            {effectiveTheme === "dark" ? <SunIcon /> : <MoonIcon />}
+          </button>
+
+          <button className="btn" onClick={run} disabled={running}>
+            <RefreshIcon />
+            {running ? "Collecte en cours…" : "Lancer la collecte"}
+          </button>
+        </header>
+
+        {running && (
+          <div className="running-bar" role="status" aria-label="Collecte en cours">
+            <i />
+          </div>
         )}
 
-        <button
-          className="icon-btn"
-          onClick={() => setTheme(effectiveTheme === "dark" ? "light" : "dark")}
-          aria-label={effectiveTheme === "dark" ? "Passer en thème clair" : "Passer en thème sombre"}
-          title={effectiveTheme === "dark" ? "Thème clair" : "Thème sombre"}
-        >
-          {effectiveTheme === "dark" ? <SunIcon /> : <MoonIcon />}
-        </button>
+        {runError && (
+          <div className="notice notice-error" role="alert">
+            {runError}
+          </div>
+        )}
 
-        <button className="btn" onClick={run} disabled={running}>
-          <RefreshIcon />
-          {running ? "Collecte en cours…" : "Lancer la collecte"}
-        </button>
-      </header>
+        {runNotice && (
+          <div className="notice notice-warn" role="status">
+            {runNotice}
+          </div>
+        )}
 
-      {running && (
-        <div className="running-bar" role="status" aria-label="Collecte en cours">
-          <i />
-        </div>
-      )}
-
-      {runError && (
-        <div className="topbar" style={{ borderTop: "none", color: "var(--status-critical)", fontSize: 13 }}>
-          {runError}
-        </div>
-      )}
-
-      {runNotice && (
-        <div
-          className="topbar"
-          role="status"
-          style={{ borderTop: "none", color: "var(--status-warning)", fontSize: 13 }}
-        >
-          {runNotice}
-        </div>
-      )}
+        {status.kind === "ready" && (
+          <CommandBar
+            view={view}
+            onView={setView}
+            threadCount={threads.length}
+            visible={visible.length}
+            total={items.length}
+            filters={filters}
+            onFilters={setFilters}
+            sort={sort}
+            onSort={setSort}
+            sortLabels={SORT_LABEL}
+            windowDays={status.digest.window_days}
+            maxWindowDays={status.digest.max_window_days}
+            windowChoices={WINDOW_CHOICES}
+            onWindow={setWindowDays}
+            windowLabel={windowLabel}
+          />
+        )}
+      </div>
 
       {status.kind === "loading" && (
         <div className="body">
@@ -231,60 +286,10 @@ export default function App() {
 
       {status.kind === "ready" && (
         <div className="body">
-          <FilterRail items={items} filters={filters} onChange={setFilters} />
+          <FilterRail items={items} filters={filters} onChange={setFilters} searchRef={searchRef} />
 
           <main className="content">
-            <KpiStrip items={items} />
-
-            <div className="toolbar">
-              <div className="segmented">
-                <button aria-pressed={view === "list"} onClick={() => setView("list")}>
-                  <ListIcon /> Liste
-                </button>
-                <button aria-pressed={view === "threads"} onClick={() => setView("threads")}>
-                  <ThreadIcon /> Threads
-                  {threads.length > 0 && <span className="seg-count">{threads.length}</span>}
-                </button>
-                <button aria-pressed={view === "map"} onClick={() => setView("map")}>
-                  <MapIcon /> Carte
-                </button>
-                <button aria-pressed={view === "table"} onClick={() => setView("table")}>
-                  <TableIcon /> Tableau
-                </button>
-              </div>
-
-              <span className="result-count">
-                {visible.length} affiché{visible.length > 1 ? "s" : ""} sur {items.length}
-              </span>
-
-              <div className="topbar-spacer" />
-
-              <label className="sr-only" htmlFor="window">
-                Profondeur du digest
-              </label>
-              <select
-                id="window"
-                value={status.digest.window_days}
-                onChange={(e) => setWindowDays(Number(e.target.value))}
-              >
-                {WINDOW_CHOICES.filter((d) => d <= status.digest.max_window_days).map((d) => (
-                  <option key={d} value={d}>
-                    {windowLabel(d)}
-                  </option>
-                ))}
-              </select>
-
-              <label className="sr-only" htmlFor="sort">
-                Trier par
-              </label>
-              <select id="sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                {(Object.keys(SORT_LABEL) as SortKey[]).map((key) => (
-                  <option key={key} value={key}>
-                    {SORT_LABEL[key]}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <KpiStrip items={items} filtered={visible.length !== items.length} />
 
             {view === "map" && (
               <WorldMap
@@ -366,6 +371,19 @@ export default function App() {
             )}
           </main>
         </div>
+      )}
+
+      {/* Retour en tête : une page de digest dépasse les 50 000 pixels, le défilement inverse
+          n'est pas une option de navigation praticable. */}
+      {scrolled && (
+        <button
+          className="to-top"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          title="Revenir en haut"
+        >
+          <ArrowUpIcon />
+          Haut de page
+        </button>
       )}
     </div>
   );

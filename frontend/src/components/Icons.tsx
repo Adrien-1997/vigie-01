@@ -86,3 +86,30 @@ export const MoonIcon = () => (
     <path d="M13.5 9.4A5.9 5.9 0 0 1 6.6 2.5a5.9 5.9 0 1 0 6.9 6.9Z" />
   </svg>
 );
+
+export const CloseIcon = () => (
+  <svg {...base} width={11} height={11}>
+    <path d="M4 4l8 8M12 4l-8 8" />
+  </svg>
+);
+
+export const ArrowUpIcon = () => (
+  <svg {...base} width={14} height={14}>
+    <path d="M8 13V3.5" />
+    <path d="M3.8 7.4 8 3.2l4.2 4.2" />
+  </svg>
+);
+
+export const FilterIcon = () => (
+  <svg {...base} width={14} height={14}>
+    <path d="M2 3.5h12l-4.6 5.2v4.4l-2.8 1.4V8.7z" />
+  </svg>
+);
+
+/** Chevron d'en-tête de colonne triable. `dir` porte le sens, jamais la seule couleur. */
+export const SortIcon = ({ dir }: { dir: "asc" | "desc" | null }) => (
+  <svg {...base} width={11} height={11} className="sort-icon">
+    <path d="M8 3v10" opacity={dir ? 1 : 0.35} />
+    {dir === "desc" ? <path d="M4.4 9.4 8 13l3.6-3.6" /> : <path d="M4.4 6.6 8 3l3.6 3.6" opacity={dir ? 1 : 0.35} />}
+  </svg>
+);

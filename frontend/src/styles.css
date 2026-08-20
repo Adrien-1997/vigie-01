@@ -168,17 +168,28 @@ button {
   min-height: 100%;
 }
 
-.topbar {
+/* Hauteur réelle de l'en-tête collant, publiée par App.tsx (ResizeObserver). Le repli sert au
+   premier rendu, avant la première mesure — pas de valeur en dur ailleurs. */
+:root {
+  --chrome-h: 66px;
+}
+
+/* Barre de titre, bandeaux de run et barre de commande dans un seul bloc collant. Empilés en
+   trois éléments `sticky top: 0` distincts, ils se recouvraient dès le premier défilement. */
+.chrome {
   position: sticky;
   top: 0;
   z-index: 20;
+  background: var(--surface);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.topbar {
   display: flex;
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
   padding: 14px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--hairline);
 }
 
 .brand {
@@ -260,21 +271,78 @@ button {
   padding: 20px 24px 56px;
 }
 
+/* Le rail défile pour lui-même. Collé sous l'en-tête sans hauteur bornée, il gardait son haut
+   épinglé et poussait son bas — les derniers pays, le bouton de réinitialisation — hors de l'écran
+   sans aucun moyen d'y accéder : la molette défilait la page, pas le rail, et le bas ne
+   réapparaissait qu'en fin de document, à cinquante mille pixels de là. La borne se calcule sur la
+   hauteur mesurée de l'en-tête, jamais sur une constante qui se décale dès que la barre passe sur
+   deux lignes. `dvh` plutôt que `vh` : sur mobile la barre d'URL rétractable fausse `vh` et
+   reproduit exactement le défaut qu'on corrige. */
+.rail {
+  position: sticky;
+  top: calc(var(--chrome-h) + 20px);
+  max-height: calc(100dvh - var(--chrome-h) - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  /* `--axis` disparaît sur la surface sombre : la barre est l'unique indice qu'il reste du rail
+     sous le pli. */
+  scrollbar-color: color-mix(in srgb, var(--ink-muted) 60%, transparent) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  /* Les contours de focus des lignes de filtre affleurent le bord du rail : sans ce filet, la
+     zone de défilement les rogne. */
+  padding: 2px 8px 2px 2px;
+  margin: -2px -8px -2px -2px;
+}
+
+.rail::-webkit-scrollbar {
+  width: 9px;
+}
+
+.rail::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-muted) 60%, transparent);
+  background-clip: content-box;
+}
+
+.rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Tiroir de filtres sous 900 px, où le rail passe en pleine largeur au-dessus du contenu. */
+.rail-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.rail-more {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 4px 8px;
+}
+
 @media (max-width: 900px) {
   .body {
     grid-template-columns: minmax(0, 1fr);
   }
   .rail {
     position: static;
+    max-height: none;
+    overflow: visible;
   }
-}
-
-.rail {
-  position: sticky;
-  top: 78px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
 }
 
 .content {
@@ -318,6 +386,17 @@ button {
   overflow: hidden;
 }
 
+/* Occupe la grille entière : la portée vaut pour toutes les tuiles, pas pour la première. */
+.kpis-scope {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--wash);
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+
 .kpi {
   padding: 14px 16px;
   display: flex;
@@ -326,7 +405,10 @@ button {
   border-left: 1px solid var(--hairline);
 }
 
-.kpi:first-child {
+/* La mention de portée s'insère avant la première tuile : sans le second sélecteur, celle-ci
+   cesse d'être `:first-child` et se dédouble d'un filet contre la bordure du panneau. */
+.kpi:first-child,
+.kpis-scope + .kpi {
   border-left: none;
 }
 
@@ -373,6 +455,48 @@ button {
 
 .search input::placeholder {
   color: var(--ink-muted);
+}
+
+/* Croix native de `type="search"` masquée : elle n'existe pas sur tous les moteurs et ne peut pas
+   porter de libellé accessible. Celle du composant la remplace partout. */
+.search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search-kbd,
+.search-clear {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.search-kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  background: var(--page);
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.search-clear {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-muted);
+}
+
+.search-clear:hover {
+  background: var(--wash);
+  color: var(--ink);
 }
 
 .search svg {
@@ -487,13 +611,78 @@ button {
   border-radius: 2px 4px 4px 2px;
 }
 
-/* ── Barre d'outils ─────────────────────────────────────────────────────── */
+/* ── Barre de commande ──────────────────────────────────────────────────── */
 
-.toolbar {
+/* Solidaire de l'en-tête plutôt que posée en tête de colonne : sur une page de digest qui dépasse
+   les cinquante mille pixels, une commande qui défile est une commande perdue. */
+.commandbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 24px 12px;
+}
+
+.commandbar-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* Reprise des filtres actifs, à côté du décompte qu'ils expliquent. */
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chips-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+}
+
+/* La facette nomme la dimension filtrée : « Espagne » seul ne dit pas si c'est le pays du média
+   ou celui de l'événement, deux filtres distincts que l'interface tient séparés partout ailleurs. */
+.chip-facet {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.chip-facet::after {
+  content: " ·";
+}
+
+.chip svg {
+  color: var(--ink-muted);
+}
+
+.chip:hover svg {
+  color: var(--ink);
+}
+
+.chips-clear {
+  margin-left: 4px;
 }
 
 .segmented {
@@ -547,7 +736,16 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.toolbar select {
+.result-count strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.result-of {
+  color: var(--ink-muted);
+}
+
+.commandbar select {
   padding: 6px 10px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
@@ -590,9 +788,27 @@ button {
 .card-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 8px 10px;
   flex-wrap: wrap;
   margin-bottom: 9px;
+}
+
+/* Bloc d'état de vérification, aligné à droite pour former une colonne le long de la liste. Il
+   passe sous la catégorie plutôt que de comprimer les libellés quand la carte devient étroite. */
+.card-flags {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+@media (max-width: 620px) {
+  .card-flags {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
 }
 
 .badge {
@@ -1412,6 +1628,22 @@ button {
   }
 }
 
+/* Bandeaux de run. Ils empruntaient la classe .topbar, donc sa position collante : trois éléments
+   épinglés au même décalage se recouvraient. Ils vivent maintenant dans le bloc `.chrome`. */
+.notice {
+  padding: 10px 24px;
+  border-top: 1px solid var(--hairline);
+  font-size: 13px;
+}
+
+.notice-error {
+  color: var(--status-critical);
+}
+
+.notice-warn {
+  color: var(--status-warning);
+}
+
 .running-bar {
   height: 2px;
   background: var(--grid);
@@ -1442,6 +1674,30 @@ button {
   }
 }
 
+/* Retour en tête, hors flux : la colonne de contenu est trop longue pour un défilement inverse. */
+.to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--ink-2);
+  box-shadow: var(--shadow);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.to-top:hover {
+  color: var(--ink);
+  border-color: var(--axis);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1456,8 +1712,68 @@ button {
 
 /* ── Vue tableau (canal d'accessibilité de la palette) ──────────────────── */
 
+/* Cadre à défilement propre, et non un tableau qui s'étire sur toute la hauteur du document :
+   c'est ce qui permet à l'en-tête de coller. `overflow-x: auto` seul faisait déjà du conteneur un
+   port de défilement (la valeur `visible` de l'axe bloc devient `auto`), donc les `th` collants s'y
+   ancraient au lieu de s'ancrer à la fenêtre, et se posaient 114 px trop bas, au milieu des lignes.
+   Puisque le port de défilement est inévitable, autant lui donner une hauteur : les 224 lignes se
+   parcourent sous des intitulés qui ne bougent plus. */
 .table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: calc(100dvh - var(--chrome-h) - 40px);
+  overscroll-behavior: contain;
+}
+
+/* En-tête collant : 224 lignes perdent leurs intitulés de colonne au troisième écran, et une
+   colonne « Confiance » sans intitulé est une colonne de nombres nus. */
+.table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.table-wrap thead th::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+  background: var(--hairline);
+}
+
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+th.num .th-sort {
+  flex-direction: row-reverse;
+}
+
+.th-sort:hover {
+  color: var(--ink);
+}
+
+th[aria-sort="ascending"] .th-sort,
+th[aria-sort="descending"] .th-sort {
+  color: var(--ink);
+}
+
+.sort-icon {
+  flex: none;
+}
+
+/* Seconde ligne de cellule : pays de la source, résolution de lieu, mention « collecté ». */
+.td-sub {
+  color: var(--ink-muted);
 }
 
 table {
@@ -1489,7 +1805,14 @@ td.num {
 
 td.wrap {
   white-space: normal;
-  min-width: 260px;
+  min-width: 230px;
+}
+
+/* Le lieu tient en deux ou trois mots : lui laisser la largeur du titre poussait la colonne
+   « Antécédent » hors du cadre depuis l'ajout de la date. */
+td.wrap-sm {
+  white-space: normal;
+  min-width: 140px;
 }
 
 td a {

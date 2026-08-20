@@ -7,6 +7,8 @@ import { CATEGORY_LABEL, CATEGORY_VAR } from "../lib/taxonomy";
 
 const W = 960;
 const H = 460;
+// Largeur nominale de l'infobulle, celle de `.map-tooltip` : sert à décider du côté où l'ouvrir.
+const TOOLTIP_W = 230;
 const STEPS = ["var(--seq-250)", "var(--seq-400)", "var(--seq-550)", "var(--seq-700)"];
 
 // L'Antarctique n'accueille aucun item du périmètre et occupe le tiers bas du cadre.
@@ -27,7 +29,7 @@ interface Props {
 }
 
 export function WorldMap({ items, selected, onSelect }: Props) {
-  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ id: string; x: number; y: number; width: number } | null>(null);
 
   const { byCountry, unlocated, unresolved, deduced, actor, presumed, max } = useMemo(
     () => computeCoverage(items),
@@ -47,6 +49,15 @@ export function WorldMap({ items, selected, onSelect }: Props) {
   const stepFor = (total: number) => steps[thresholds.findIndex((t) => total <= t)] ?? steps[steps.length - 1];
 
   const hovered = hover ? byCountry.get(hover.id) : null;
+
+  // Le décalage bascule à gauche du curseur quand l'infobulle déborderait du cadre. La borne
+  // se lit sur la largeur réellement rendue du SVG, pas sur une constante : la carte est fluide,
+  // et une valeur en dur coupait l'infobulle sur les pays de l'est de la carte dès que la fenêtre
+  // s'écartait de la largeur pour laquelle elle avait été choisie.
+  const tooltipStyle = (x: number, y: number, width: number) =>
+    x + TOOLTIP_W + 14 > width
+      ? { right: Math.max(8, width - x + 14), top: y + 14 }
+      : { left: x + 14, top: y + 14 };
 
   return (
     <div className="panel panel-pad">
@@ -81,7 +92,7 @@ export function WorldMap({ items, selected, onSelect }: Props) {
                 onMouseMove={(e) => {
                   if (!bucket) return setHover(null);
                   const box = e.currentTarget.ownerSVGElement!.getBoundingClientRect();
-                  setHover({ id: feature.id, x: e.clientX - box.left, y: e.clientY - box.top });
+                  setHover({ id: feature.id, x: e.clientX - box.left, y: e.clientY - box.top, width: box.width });
                 }}
                 onClick={() => bucket && onSelect(isSelected ? null : key)}
               >
@@ -99,13 +110,7 @@ export function WorldMap({ items, selected, onSelect }: Props) {
         </svg>
 
         {hover && hovered && (
-          <div
-            className="map-tooltip map-tooltip-body"
-            style={{
-              left: Math.min(hover.x + 14, 640),
-              top: hover.y + 14,
-            }}
-          >
+          <div className="map-tooltip map-tooltip-body" style={tooltipStyle(hover.x, hover.y, hover.width)}>
             <strong>{hovered.name}</strong>
             {hovered.deduced > 0 && (
               <span className="tooltip-note">
@@ -113,10 +118,10 @@ export function WorldMap({ items, selected, onSelect }: Props) {
               </span>
             )}
             {hovered.actor > 0 && (
-              <li>
+              <span className="tooltip-note">
                 {hovered.actor}/{hovered.total} rattaché{hovered.actor > 1 ? "s" : ""} par le protagoniste,
                 sans lieu rattachable — d'où vient l'action, pas où elle se produit
-              </li>
+              </span>
             )}
             {hovered.presumed > 0 && (
               <span className="tooltip-note">
@@ -178,7 +183,7 @@ export function WorldMap({ items, selected, onSelect }: Props) {
         le pays est <strong>cité</strong> par la source ; il est <strong>déduit</strong> par le modèle
         d'une localité nommée (« Darwin » → Australie) ; à défaut de tout lieu rattachable, il est
         déduit de l'<strong>acteur</strong> nommé (« Houthis » → Yémen), ce qui dit d'où vient
-        l'action et non où elle se produit ; ou, à défaut de tout, l'événement est
+        l'action et non où elle se produit ; ou, à défaut de tout, l'événement est{" "}
         <strong>présumé domestique</strong> au pays du média, sur jugement du contenu de l'article
         — jamais sur la seule origine du média, qui placerait en Russie une dépêche TASS sur le Yémen.
         Ce qui reste non plaçable est affiché plutôt qu'écarté : la couverture réelle est sous-estimée

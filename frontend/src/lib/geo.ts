@@ -292,6 +292,17 @@ const COUNTRY_FR: Record<string, string> = {
 /** Nom d'un pays tel qu'affiché dans l'interface (français). */
 export const countryLabel = (f: CountryFeature) => COUNTRY_FR[f.properties.name] ?? f.properties.name;
 
+const BY_KEY = new Map<string, CountryFeature>();
+for (const f of COUNTRIES) BY_KEY.set(countryKey(f), f);
+
+/** Chemin inverse de `countryKey` : de l'identifiant porté par un filtre de carte au libellé
+ *  français. La sélection de carte ne transporte que la clé, et l'afficher telle quelle ferait
+ *  remonter un code numérique dans une interface en français. */
+export const countryLabelByKey = (key: string) => {
+  const f = BY_KEY.get(key);
+  return f ? countryLabel(f) : key;
+};
+
 const BY_NAME = new Map<string, CountryFeature>();
 for (const f of COUNTRIES) BY_NAME.set(normalize(f.properties.name), f);
 
