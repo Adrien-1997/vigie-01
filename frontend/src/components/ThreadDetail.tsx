@@ -10,9 +10,9 @@ import { AlertIcon, CheckIcon, ThreadIcon } from "./Icons";
  *  devient le détail qu'on consulte après avoir lu la forme du dossier.
  *
  *  Aucun indicateur agrégé de fiabilité n'est calculé ici. Les compteurs de vérification disent
- *  combien d'articles ont été escaladés et ce qu'il est advenu des autres, en distinguant « pas
- *  escaladé faute de budget » de « hors du périmètre du vérificateur » : ce sont deux silences
- *  différents, et aucun des deux ne vaut un score. */
+ *  combien d'articles ont été escaladés et ce qu'il est advenu des autres, en distinguant « rien
+ *  d'assez proche à recouper dans l'historique », qui est une mesure, de « le plafond du run a
+ *  coupé avant », qui est une absence de mesure : aucun des deux ne vaut un score. */
 export function ThreadDetail({ thread }: { thread: ThreadModel }) {
   const [selected, setSelected] = useState(thread.items.length - 1);
   const shown = thread.items[selected] ?? thread.lead;
@@ -69,13 +69,18 @@ export function ThreadDetail({ thread }: { thread: ThreadModel }) {
             {thread.singleSource} sans antécédent à la collecte
           </span>
         )}
-        {thread.unscoredInScope > 0 && (
-          <span className="badge quiet" title="Catégorie couverte par le vérificateur, mais le plafond d'escalade du run a été atteint avant ces articles. Absence de mesure, pas mesure d'absence.">
-            {thread.unscoredInScope} non vérifié{thread.unscoredInScope > 1 ? "s" : ""}
+        {thread.unscoredCapped > 0 && (
+          <span className="badge quiet" title="Un antécédent candidat existait, mais le plafond d'escalade du run ou le budget quotidien a coupé avant ces articles. Absence de mesure, pas mesure d'absence.">
+            {thread.unscoredCapped} non vérifié{thread.unscoredCapped > 1 ? "s" : ""}
+          </span>
+        )}
+        {thread.unscoredNoAntecedent > 0 && (
+          <span className="badge quiet" title="Le portillon d'escalade n'a trouvé aucun article assez proche dans la fenêtre d'historique : il n'y avait rien à recouper pour ces articles. C'est une mesure, pas un manque — et c'est attendu dans un thread dont toutes les sources sont arrivées dans le même lot.">
+            {thread.unscoredNoAntecedent} sans antécédent candidat
           </span>
         )}
         {thread.unscoredOutOfScope > 0 && (
-          <span className="badge quiet" title="Catégorie hors du périmètre du vérificateur (VERIFIER_CATEGORIES) : ces articles ne sont pas censés porter de score.">
+          <span className="badge quiet" title="Articles analysés avant le 2026-08-20, quand le vérificateur ne couvrait que le contrôle export et les contrats d'armement : ils ne sont pas censés porter de score.">
             {thread.unscoredOutOfScope} hors périmètre de vérification
           </span>
         )}

@@ -1,5 +1,5 @@
 import type { AnalyzedItem } from "../types";
-import { VERIFIER_CATEGORIES } from "../lib/taxonomy";
+import { isEscalatable } from "../lib/verification";
 import { computeCoverage, unplacedReasons } from "../lib/coverage";
 
 const pct = (n: number, d: number) => (d === 0 ? null : `${Math.round((n / d) * 100)} %`);
@@ -10,7 +10,11 @@ const pct = (n: number, d: number) => (d === 0 ? null : `${Math.round((n / d) * 
  *  tuile ne doit prétendre le contraire. */
 export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
   const sources = new Set(items.map((i) => i.source));
-  const escalatable = items.filter((i) => VERIFIER_CATEGORIES.has(i.category));
+  // Ce qui rend un item escaladable n'est plus sa catégorie mais l'existence d'un antécédent
+  // candidat dans l'historique (portillon du 2026-08-20) : un digest où rien ne se recoupe a donc
+  // légitimement un dénominateur bas, et le dire vaut mieux qu'afficher un taux sur une assiette
+  // que le vérificateur n'a jamais eu à traiter.
+  const escalatable = items.filter(isEscalatable);
   const scored = items.filter((i) => i.confidence_score !== null);
   const corroborated = items.filter((i) => i.corroborated === true);
   const stateAffiliated = items.filter((i) => i.state_affiliated);
@@ -38,7 +42,7 @@ export function KpiStrip({ items }: { items: AnalyzedItem[] }) {
         <span className="kpi-label">Vérifiés</span>
         <span className="kpi-note">
           {escalatable.length === 0
-            ? "aucun item de catégorie escaladable dans ce digest"
+            ? "aucun antécédent candidat dans ce digest : rien à recouper"
             : `${pct(scored.length, escalatable.length)} des items escaladables`}
         </span>
       </div>

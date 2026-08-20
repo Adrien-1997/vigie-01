@@ -7,7 +7,8 @@ export type Category =
   | "hors_perimetre";
 
 /** Miroir de AnalyzedItem (backend/state.py). confidence_score et corroborated ne sont
- *  renseignés que pour les catégories couvertes par le vérificateur (VERIFIER_CATEGORIES). */
+ *  renseignés que pour les items que le portillon du vérificateur a retenus (cf.
+ *  has_antecedent_candidate ci-dessous). */
 export interface AnalyzedItem {
   source: string;
   lang: string;
@@ -29,6 +30,12 @@ export interface AnalyzedItem {
   domestic_to_source?: boolean;
   confidence_score: number | null;
   corroborated: boolean | null;
+  /** Résultat du portillon d'escalade du vérificateur (VERIFIER_GATE_MIN_SCORE, backend/config.py) :
+   *  l'historique portait-il un antécédent candidat au moment de la vérification ? Sépare un
+   *  `confidence_score` nul qui est une mesure — rien d'assez proche à recouper — d'un nul qui est
+   *  un plafond atteint. Absent des digests écrits avant le 2026-08-20, où la catégorie tenait ce
+   *  rôle (cf. lib/verification.ts). */
+  has_antecedent_candidate?: boolean | null;
   /** Rattachement à un dossier partagé avec d'autres items (V3 tranche 1, backend/agents/threader.py).
    *  Optionnel : les digests produits avant son introduction ne le portent pas. `null`/absent = pas
    *  encore rattaché à un autre item, pas une valeur à combler. */

@@ -1,4 +1,5 @@
 from backend.agents import verifier
+from backend.memory import store
 
 
 def _analyzed_item(category: str, link: str = "l") -> dict:
@@ -76,8 +77,39 @@ def _patch_llm(monkeypatch, tool_responses=(), conclusion=None, invoke_counter=N
     )
 
 
-def test_verify_escalates_only_configured_categories(monkeypatch):
+def _open_the_gate(monkeypatch) -> None:
+    """Ouvre le portillon d'escalade, pour les tests qui portent sur autre chose que lui.
+
+    Deux gestes, pas un. Un antécédent dans l'historique d'abord : depuis le 2026-08-20 un historique
+    vide rend tout le lot inéligible — le comportement voulu (rien à recouper, donc rien à payer),
+    mais pas ce que mesurent les tests d'escalade. Le seuil ramené à 0 ensuite, parce que fabriquer
+    un chevauchement pondéré IDF au-dessus de 20 demanderait une dizaine de tokens rares partagés
+    dans chaque test ; le seuil réel est éprouvé à part, dans
+    test_verify_skips_an_item_the_history_has_nothing_close_to.
+
+    Le remplissage au vocabulaire distinct n'est pas décoratif : sans lui, tous les tokens de la
+    fenêtre seraient présents dans tous ses enregistrements, donc de poids IDF nul
+    (log(total / df) = 0), et le portillon resterait fermé même à seuil 0.
+    """
+    monkeypatch.setattr(verifier, "VERIFIER_GATE_MIN_SCORE", 0.0)
+    store.record_analyzed(
+        [
+            _analyzed_item("contrat_armement", "ante"),
+            {
+                **_analyzed_item("contrat_armement", "ante-filler"),
+                "title_fr": "Sujet sans rapport",
+                "summary": "Aucun mot commun",
+            },
+        ]
+    )
+
+
+def test_verify_escalates_every_category_of_the_perimeter(monkeypatch):
+    """La catégorie ne borne plus l'escalade depuis le 2026-08-20 : mouvement_militaire, hors du
+    périmètre du vérificateur jusque-là, est vérifié comme export_control dès lors que l'historique
+    porte un antécédent candidat. Ce qui borne le coût, c'est le portillon."""
     _patch_llm(monkeypatch, conclusion=_FakeConclusion(0.8, True))
+    _open_the_gate(monkeypatch)
 
     items = [_analyzed_item("export_control", "a"), _analyzed_item("mouvement_militaire", "b")]
     result = verifier.verify({"raw_items": [], "analyzed_items": items})
@@ -85,13 +117,38 @@ def test_verify_escalates_only_configured_categories(monkeypatch):
     escalated = {i["link"]: i for i in result["analyzed_items"]}
     assert escalated["a"]["confidence_score"] == 0.8
     assert escalated["a"]["corroborated"] is True
-    assert escalated["b"]["confidence_score"] is None
-    assert escalated["b"]["corroborated"] is None
+    assert escalated["b"]["confidence_score"] == 0.8
+    assert escalated["b"]["corroborated"] is True
+    assert escalated["b"]["has_antecedent_candidate"] is True
+
+
+def test_verify_skips_an_item_the_history_has_nothing_close_to(monkeypatch):
+    """VERIFIER_GATE_MIN_SCORE est appliqué, pas seulement « au moins un candidat » : dans une
+    fenêtre >= 3 items où le seul candidat partage un score IDF mesurable mais loin sous le seuil,
+    aucun appel ne part — et l'item ressort marqué comme n'ayant pas d'antécédent candidat, ce qui
+    distingue ce silence-là de celui d'un plafond atteint."""
+    counter = [0]
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion(), invoke_counter=counter)
+    store.record_analyzed(
+        [
+            {**_analyzed_item("contrat_armement", "c"), "title_fr": "Rafale vendu à la Grèce"},
+            {**_analyzed_item("contrat_armement", "filler-1"), "title_fr": "Sous-marins australiens"},
+            {**_analyzed_item("contrat_armement", "filler-2"), "title_fr": "Drones Bayraktar en Ukraine"},
+        ]
+    )
+
+    item = {**_analyzed_item("contrat_armement", "a"), "title_fr": "Rafale Grèce", "summary": "contrat"}
+    result = verifier.verify({"raw_items": [], "analyzed_items": [item]})
+
+    assert result["analyzed_items"][0]["confidence_score"] is None
+    assert result["analyzed_items"][0]["has_antecedent_candidate"] is False
+    assert counter[0] == 0
 
 
 def test_verify_respects_max_escalations_per_run(monkeypatch):
     monkeypatch.setattr(verifier, "MAX_VERIFIER_ESCALATIONS_PER_RUN", 1)
     _patch_llm(monkeypatch, conclusion=_FakeConclusion(0.9, False))
+    _open_the_gate(monkeypatch)
 
     items = [_analyzed_item("export_control", "a"), _analyzed_item("export_control", "b")]
     result = verifier.verify({"raw_items": [], "analyzed_items": items})
@@ -99,6 +156,8 @@ def test_verify_respects_max_escalations_per_run(monkeypatch):
     escalated = {i["link"]: i for i in result["analyzed_items"]}
     assert escalated["a"]["confidence_score"] == 0.9
     assert escalated["b"]["confidence_score"] is None
+    # Le portillon avait pourtant retenu b : son silence vient du plafond, pas d'un historique muet.
+    assert escalated["b"]["has_antecedent_candidate"] is True
 
 
 def test_verify_stops_tool_loop_at_max_steps(monkeypatch):
@@ -109,6 +168,7 @@ def test_verify_stops_tool_loop_at_max_steps(monkeypatch):
     ]
     counter = [0]
     _patch_llm(monkeypatch, tool_responses=always_tool, conclusion=_FakeConclusion(), invoke_counter=counter)
+    _open_the_gate(monkeypatch)
 
     verifier.verify({"raw_items": [], "analyzed_items": [_analyzed_item("export_control", "a")]})
 
@@ -117,6 +177,7 @@ def test_verify_stops_tool_loop_at_max_steps(monkeypatch):
 
 def test_verify_never_touches_summary_or_citation(monkeypatch):
     _patch_llm(monkeypatch, conclusion=_FakeConclusion(0.5, False))
+    _open_the_gate(monkeypatch)
 
     item = _analyzed_item("contrat_armement", "a")
     result = verifier.verify({"raw_items": [], "analyzed_items": [item]})
@@ -128,26 +189,24 @@ def test_verify_never_touches_summary_or_citation(monkeypatch):
 def test_verify_records_the_scored_items_not_their_pre_verification_version(monkeypatch):
     """L'historique alimente aussi le digest servi par l'API : il doit porter l'item tel qu'il sera
     affiché. Enregistré avant l'escalade, il aurait figé confidence_score/corroborated à None."""
-    import backend.memory.store as store
-
     _patch_llm(monkeypatch, conclusion=_FakeConclusion(0.5, True))
+    _open_the_gate(monkeypatch)
 
     verifier.verify({"raw_items": [], "analyzed_items": [_analyzed_item("contrat_armement", "a")]})
 
-    recorded = store.load_digest(1)
-    assert [r["link"] for r in recorded] == ["a"]
-    assert recorded[0]["confidence_score"] == 0.5
-    assert recorded[0]["corroborated"] is True
+    recorded = {r["link"]: r for r in store.load_digest(1)}
+    assert recorded["a"]["confidence_score"] == 0.5
+    assert recorded["a"]["corroborated"] is True
 
 
 def test_verify_truncates_escalation_without_losing_the_items_already_analyzed(monkeypatch):
     """Un item analysé et payé ne doit pas disparaître parce que sa vérification, elle, n'a pas pu
     être financée : le nœud va au bout du lot, laisse None sur les non vérifiés — l'état que la
     restitution rend déjà comme « hors périmètre du vérificateur » — et écrit l'historique."""
-    import backend.memory.store as store
     from backend.guardrails import BudgetExceeded
 
     _patch_llm(monkeypatch, conclusion=_FakeConclusion(0.8, True))
+    _open_the_gate(monkeypatch)
 
     calls = [0]
 
@@ -167,7 +226,7 @@ def test_verify_truncates_escalation_without_losing_the_items_already_analyzed(m
     assert by_link["b"]["confidence_score"] is None
     assert result["truncated"] is True
     # Les deux items restent dans l'historique : c'est lui qui alimente le digest servi par l'API.
-    assert {r["link"] for r in store.load_digest(1)} == {"a", "b"}
+    assert {"a", "b"} <= {r["link"] for r in store.load_digest(1)}
 
 
 def test_verify_preserves_a_truncation_already_flagged_by_analyze(monkeypatch):
@@ -190,6 +249,7 @@ def test_verify_never_lets_two_items_of_the_same_run_corroborate_each_other(monk
 
     tool_call = _FakeToolCallResponse([{"name": "search_related_items", "args": {"query": "Rafale"}, "id": "c1"}])
     _patch_llm(monkeypatch, tool_responses=[tool_call], conclusion=_FakeConclusion(0.5, False))
+    _open_the_gate(monkeypatch)
 
     items = [_analyzed_item("export_control", "a"), _analyzed_item("export_control", "b")]
     items[0]["summary"] = items[1]["summary"] = "Rafale vendu à la Grèce par Dassault"

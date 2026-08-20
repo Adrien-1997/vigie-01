@@ -32,14 +32,6 @@ export const CATEGORY_VAR: Record<Category, string> = {
   hors_perimetre: "var(--cat-none)",
 };
 
-/** Catégories escaladées au vérificateur — miroir de VERIFIER_CATEGORIES (backend/config.py).
- *  Sert à distinguer « non vérifié parce que hors périmètre du vérificateur » de
- *  « non vérifié parce que le plafond d'escalade du run était atteint ». */
-export const VERIFIER_CATEGORIES: ReadonlySet<Category> = new Set<Category>([
-  "export_control",
-  "contrat_armement",
-]);
-
 export const LANG_LABEL: Record<string, string> = {
   fr: "Français",
   en: "Anglais",

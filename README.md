@@ -15,7 +15,8 @@ produit est dans [`docs/cadrage.md`](docs/cadrage.md).
 
 Chaque fiche porte les signaux qui engagent la confiance — citation vérifiée verbatim, antécédent
 trouvé ou non dans l'historique, provenance « média d'État », score du vérificateur — et un item
-hors du périmètre du vérificateur sort **sans** score plutôt qu'avec un zéro trompeur.
+que le vérificateur n'a pas escaladé sort **sans** score plutôt qu'avec un zéro trompeur, en
+disant laquelle des raisons s'applique.
 
 ![Carte de couverture géographique construite sur le lieu vérifié de chaque événement, avec le décompte des items sans lieu extrait et des lieux non rattachables à un pays](docs/screenshot-map.png)
 
@@ -97,7 +98,8 @@ l'ingestion, pas du prompt.
 
 Deux mesures antérieures (n=30 puis n=88) et les correctifs de définition qu'elles ont déclenchés
 sont détaillés en [§7](docs/cadrage.md). Ce qui n'est **pas** mesuré est dit comme tel : le
-vérificateur n'a produit que 20 scores (catégories sensibles seules, 2 avec antécédent) et le
+vérificateur n'a produit que 20 scores (2 avec antécédent) sur la semaine mesurée — l'extension
+aux cinq catégories, câblée le 2026-08-20, n'a pas encore tourné en réel — et le
 regroupement 11 threads. Le critère d'acceptation des threads est **atteint** : sur l'échantillon de
 65 paires gelé et annoté le 2026-08-20, les 13 paires intra-thread sont toutes jugées même dossier
 (précision 100 %) — une précision, pas un rappel, un dossier que le modèle n'a pas su rapprocher ne
@@ -112,7 +114,7 @@ produisant aucune paire à annoter.
 | Backend         | Python 3.13, FastAPI                     | construit (V1)          |
 | Observabilité   | LangSmith (tracing natif par nœud)       | construit (V1)          |
 | Frontend        | React + TypeScript + Vite                | construit (V1)          |
-| Vérificateur (recoupement, score de confiance) | LangGraph + tool-calling borné | 1ʳᵉ tranche construite (catégories sensibles) |
+| Vérificateur (recoupement, score de confiance) | LangGraph + tool-calling borné | 1ʳᵉ tranche construite ; périmètre étendu aux 5 catégories, escalade conditionnée à un antécédent |
 | Carte de couverture interactive | d3-geo + Natural Earth, sur le champ `location` | construite (V2, 1ʳᵉ tranche) |
 | Threads d'événements (regroupement longitudinal) | LangGraph + tool-calling borné, chronologie et provenance côté front | 1ʳᵉ tranche construite (V3) |
 | Déploiement     | Cloud Run + Cloud Scheduler (cron)        | prévu                   |
@@ -224,7 +226,7 @@ Raison d'être de la campagne, fenêtre de rattrapage et KPI de couverture : [`d
 - [x] V1 — collecte + dédoublonnage + classification + résumé tracé + API + frontend
 - [x] V1 — sources organisées par pays (top 10 exportateurs SIPRI + Iran/Corée du Nord), validées en direct
 - [ ] V1 — déploiement Cloud Run + Cloud Scheduler
-- [~] V2 — agent vérificateur : recoupement et score de confiance livrés sur les catégories sensibles ; extension aux autres catégories et `fetch_full_article` à venir
+- [~] V2 — agent vérificateur : recoupement et score de confiance livrés ; périmètre étendu aux cinq catégories le 2026-08-20, l'escalade étant conditionnée à un antécédent candidat mesuré plutôt qu'à la catégorie — reste à exécuter sur un run réel, et `fetch_full_article` à venir
 - [~] V2 — carte de couverture interactive livrée (filtrage par pays depuis le champ `location`) ; sectorisation par thème à venir
 - [~] V3 — raisonnement longitudinal sur l'historique : le pipeline traitait chaque item isolément, alors qu'une part du signal se situe entre les items (un dossier qui évolue, la fréquence d'un pays qui monte). Cinq tranches séquencées, cadrées en [§10](docs/cadrage.md) :
   - [x] threads d'événements — regrouper les items d'un même dossier, restitués en chronologie à l'échelle réelle du temps avec le croisement média/lieu de l'événement. Critère d'acceptation **atteint** (2026-08-20) : précision 100 % sur les 13 paires intra-thread annotées
@@ -249,7 +251,7 @@ pas le travail qu'il vient de faire payer. Détail de chacun, et ce que chacun a
 
 ## Note
 
-Projet de démonstration à vocation portfolio. Le pipeline et l'API sont réels et fonctionnels (sources RSS live, appels LLM réels, mesures réelles) ; le déploiement cloud reste à construire, et le vérificateur ne couvre pour l'instant que les catégories les plus sensibles — les autres items sortent sans score de confiance plutôt qu'avec un score fabriqué par défaut.
+Projet de démonstration à vocation portfolio. Le pipeline et l'API sont réels et fonctionnels (sources RSS live, appels LLM réels, mesures réelles) ; le déploiement cloud reste à construire, et le vérificateur ne score que les items dont l'historique porte un antécédent à recouper — les autres sortent sans score de confiance plutôt qu'avec un score fabriqué par défaut.
 
 ## Licence
 

@@ -146,6 +146,45 @@ def test_search_thread_candidates_ignores_min_score_under_a_degenerate_window():
     assert [c["link"] for c in results] == ["target"]
 
 
+def test_has_antecedent_applies_min_score_once_idf_is_active():
+    """Portillon d'escalade du vérificateur (VERIFIER_GATE_MIN_SCORE) : même mécanique que celle du
+    threader, mais sur tout un lot et une seule lecture d'historique."""
+    store.record_analyzed(
+        [
+            _analyzed_item("target", "Rafale vendu à la Grèce", "Dassault confirme la vente"),
+            _analyzed_item("filler-1", "Sous-marins nucléaires australiens", "Accord AUKUS signé"),
+            _analyzed_item("filler-2", "Drones Bayraktar en Ukraine", "Livraison confirmée par Kyiv"),
+        ]
+    )
+    queries = {"item": "Rafale Grèce"}
+
+    assert store.has_antecedent(queries, exclude_links=set(), min_score=0.1) == {"item": True}
+    assert store.has_antecedent(queries, exclude_links=set(), min_score=100.0) == {"item": False}
+
+
+def test_has_antecedent_ignores_min_score_under_a_degenerate_window():
+    """Sous 3 items le score retombe sur un compte brut de tokens (cf. _overlap_score) : un seuil
+    mesuré en pondéré n'y a pas de sens, et le portillon retombe sur « au moins un candidat »."""
+    store.record_analyzed([_analyzed_item("target", "Rafale vendu à la Grèce", "Dassault confirme la vente")])
+
+    assert store.has_antecedent({"item": "Rafale Grèce"}, exclude_links=set(), min_score=1000.0) == {"item": True}
+
+
+def test_has_antecedent_never_counts_an_item_of_the_current_batch():
+    """Un antécédent est une confirmation indépendante dans le temps : deux reprises simultanées de
+    la même dépêche ne s'en tiennent pas lieu, d'où exclude_links sur tout le lot (cf. search_related)."""
+    store.record_analyzed(
+        [
+            _analyzed_item("a", "Rafale vendu à la Grèce", "Dassault confirme la vente"),
+            _analyzed_item("b", "Rafale vendu à la Grèce", "Dassault confirme la vente"),
+        ]
+    )
+
+    gate = store.has_antecedent({"a": "Rafale Grèce", "b": "Rafale Grèce"}, exclude_links={"a", "b"}, min_score=0.0)
+
+    assert gate == {"a": False, "b": False}
+
+
 def test_record_analyzed_is_not_visible_to_search_before_it_is_called():
     assert store.search_related("Rafale Grèce Dassault", exclude_links={"z"}) == []
 

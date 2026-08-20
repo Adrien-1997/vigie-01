@@ -1,7 +1,7 @@
 import type { AnalyzedItem, Category } from "../types";
 import { publishedMs } from "./filters";
 import { computeCoverage, type Coverage } from "./coverage";
-import { VERIFIER_CATEGORIES } from "./taxonomy";
+import { unscoredReason } from "./verification";
 
 /** Un groupe d'un seul item est un item autonome ; un groupe de plusieurs est un thread. */
 export type ThreadGroup = AnalyzedItem[];
@@ -113,9 +113,14 @@ export interface ThreadModel {
   scored: AnalyzedItem[];
   corroborated: number;
   singleSource: number;
-  /** Non scorés alors que leur catégorie est escaladable : le plafond du run les a laissés de côté. */
-  unscoredInScope: number;
-  /** Non scorés parce que hors du périmètre du vérificateur — ce n'est pas un manque. */
+  /** Non scorés alors qu'un antécédent candidat existait : le plafond du run ou le budget les a
+   *  laissés de côté. C'est le seul des trois comptes qui soit une absence de mesure. */
+  unscoredCapped: number;
+  /** Non scorés parce que l'historique ne portait rien d'assez proche à recouper — une mesure, pas
+   *  un manque. */
+  unscoredNoAntecedent: number;
+  /** Non scorés parce qu'analysés avant le 2026-08-20, quand le vérificateur ne couvrait que deux
+   *  catégories. Tombe à zéro dès que la fenêtre de rétention a dépassé cette date. */
   unscoredOutOfScope: number;
 }
 
@@ -132,7 +137,8 @@ export function buildThread(group: AnalyzedItem[]): ThreadModel {
   let datedByPublication = 0;
   let corroborated = 0;
   let singleSource = 0;
-  let unscoredInScope = 0;
+  let unscoredCapped = 0;
+  let unscoredNoAntecedent = 0;
   let unscoredOutOfScope = 0;
 
   for (const item of items) {
@@ -150,7 +156,9 @@ export function buildThread(group: AnalyzedItem[]): ThreadModel {
     if (item.corroborated === true) corroborated += 1;
     if (item.corroborated === false) singleSource += 1;
     if (item.confidence_score === null) {
-      if (VERIFIER_CATEGORIES.has(item.category)) unscoredInScope += 1;
+      const reason = unscoredReason(item);
+      if (reason === "capped") unscoredCapped += 1;
+      else if (reason === "no-antecedent") unscoredNoAntecedent += 1;
       else unscoredOutOfScope += 1;
     }
   }
@@ -174,7 +182,8 @@ export function buildThread(group: AnalyzedItem[]): ThreadModel {
     scored: items.filter((i) => i.confidence_score !== null),
     corroborated,
     singleSource,
-    unscoredInScope,
+    unscoredCapped,
+    unscoredNoAntecedent,
     unscoredOutOfScope,
   };
 }

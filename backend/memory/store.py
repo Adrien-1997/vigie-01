@@ -244,6 +244,47 @@ def search_related(query: str, exclude_links: set[str], limit: int = 5) -> list[
     ]
 
 
+def has_antecedent(queries: dict[str, str], exclude_links: set[str], min_score: float) -> dict[str, bool]:
+    """Portillon d'escalade du vérificateur (backend/agents/verifier.py) : pour chaque item — clé, le
+    lien ; valeur, la requête — dit si l'historique porte au moins un antécédent dont le score de
+    chevauchement atteint `min_score`.
+
+    Un lot entier plutôt qu'une sonde par item : la fenêtre et ses fréquences documentaires sont
+    chargées une fois, là où `search_related` relit l'historique à chaque appel. Le vérificateur
+    couvrant tout le périmètre depuis le 2026-08-20, une sonde par item aurait multiplié la lecture
+    de l'historique par le volume du run (~110), sur un backend Firestore dont le coût de lecture
+    est déjà un point ouvert du déploiement (docs/cadrage.md §11).
+
+    `exclude_links` porte tout le lot courant, comme `search_related` : un antécédent est une
+    confirmation indépendante dans le temps, pas une reprise simultanée de la même dépêche. Un
+    historique vide rend donc tout le lot inéligible — c'est le comportement voulu, escalader un
+    item dont l'historique n'a rien à dire coûte 2 à 3 appels pour produire une non-réponse.
+
+    Même réserve d'échelle que `search_thread_candidates` : sous trois items dans la fenêtre,
+    `_overlap_score` retombe sur un compte brut de tokens, échelle sur laquelle un seuil mesuré en
+    pondéré n'a pas de sens — le portillon retombe alors sur « au moins un candidat ».
+    """
+    records = get_persistence().analyzed_since(_cutoff(RELATED_ITEMS_WINDOW_DAYS))
+    df = _document_frequencies(records)
+    total = len(records)
+    floor = min_score if total >= 3 else 0.0
+    candidates = [(_record_tokens(record), record["link"]) for record in records]
+
+    gate: dict[str, bool] = {}
+    for link, query in queries.items():
+        query_tokens = _tokenize(query)
+        found = False
+        for record_tokens, candidate_link in candidates:
+            if candidate_link in exclude_links:
+                continue
+            score = _overlap_score(query_tokens, record_tokens, df, total)
+            if score > 0 and score >= floor:
+                found = True
+                break
+        gate[link] = found
+    return gate
+
+
 def analyzed_window(days: int = RELATED_ITEMS_WINDOW_DAYS) -> dict[str, dict]:
     """Fenêtre d'historique indexée par lien, pour un appelant qui doit résoudre un lien vers son
     enregistrement complet (ex. backend/agents/threader.py, pour patcher thread_id sans repartir

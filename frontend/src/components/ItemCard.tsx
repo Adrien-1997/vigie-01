@@ -28,7 +28,7 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
           {CATEGORY_LABEL[item.category]}
         </span>
 
-        <ConfidenceGauge score={item.confidence_score} category={item.category} />
+        <ConfidenceGauge item={item} />
 
         {/* « Antécédent » et non « recoupé » : le vérificateur ne recoupe jamais entre eux les
             articles affichés, `exclude_links` excluant tout le lot en cours. */}

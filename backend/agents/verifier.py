@@ -1,7 +1,12 @@
-"""Nœud vérificateur : recoupement et score de confiance pour les items à catégorie sensible
-(première tranche de docs/cadrage.md §10 V2 — cf. backend/memory/store.py pour l'historique de
-recoupement). Contrairement à analyze(), ce nœud a une vraie boucle agentique bornée : le LLM
-décide lui-même s'il cherche du contexte supplémentaire avant de conclure.
+"""Nœud vérificateur : recoupement et score de confiance (première tranche de docs/cadrage.md §10
+V2 — cf. backend/memory/store.py pour l'historique de recoupement). Contrairement à analyze(), ce
+nœud a une vraie boucle agentique bornée : le LLM décide lui-même s'il cherche du contexte
+supplémentaire avant de conclure.
+
+Ce qui borne le coût a changé le 2026-08-20 : ce n'est plus la catégorie de l'item mais l'existence
+d'un antécédent candidat dans l'historique (VERIFIER_GATE_MIN_SCORE). Tout le périmètre MECE est
+désormais éligible, et un item dont la fenêtre ne porte rien d'assez proche n'est pas escaladé —
+il produirait une non-réponse payée 2 à 3 appels.
 """
 
 from langchain_anthropic import ChatAnthropic
@@ -9,9 +14,14 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from backend.config import MAX_VERIFIER_ESCALATIONS_PER_RUN, MAX_VERIFIER_STEPS_PER_ITEM, VERIFIER_CATEGORIES
+from backend.config import (
+    MAX_VERIFIER_ESCALATIONS_PER_RUN,
+    MAX_VERIFIER_STEPS_PER_ITEM,
+    VERIFIER_CATEGORIES,
+    VERIFIER_GATE_MIN_SCORE,
+)
 from backend.guardrails import BudgetExceeded, check_and_increment_llm_call
-from backend.memory.store import record_analyzed, search_related
+from backend.memory.store import has_antecedent, record_analyzed, search_related
 from backend.state import AnalyzedItem, VeilleState
 
 MODEL = "claude-haiku-4-5-20251001"
@@ -94,10 +104,20 @@ def _verify_item(item: AnalyzedItem, exclude_links: set[str]) -> tuple[float, bo
 
 
 def verify(state: VeilleState) -> VeilleState:
-    """Nœud LangGraph : ajoute confidence_score/corroborated pour les items dont la catégorie est
-    dans VERIFIER_CATEGORIES, plafonné à MAX_VERIFIER_ESCALATIONS_PER_RUN par run. Les autres items
-    (hors catégorie ou au-delà du plafond) gardent confidence_score/corroborated à None — pas de
-    score fabriqué sans base réelle.
+    """Nœud LangGraph : ajoute confidence_score/corroborated aux items que le portillon retient,
+    plafonné à MAX_VERIFIER_ESCALATIONS_PER_RUN par run. Les autres gardent
+    confidence_score/corroborated à None — pas de score fabriqué sans base réelle.
+
+    Le portillon (store.has_antecedent, seuil VERIFIER_GATE_MIN_SCORE) est calculé pour tout le lot
+    en une lecture d'historique, avant la boucle : un item n'est escaladé que si la fenêtre porte un
+    antécédent dont le chevauchement pondéré IDF atteint le seuil. Il remplace la restriction par
+    catégorie qui tenait ce rôle jusqu'au 2026-08-20 — laquelle bornait le coût en refusant de
+    regarder quatre catégories sur cinq, pas en distinguant les items vérifiables des autres.
+
+    Son résultat est écrit sur chaque item (has_antecedent_candidate), escaladé ou non. Sans lui,
+    deux silences très différents seraient indistinguables à l'affichage : « l'historique ne portait
+    rien à recouper », qui est une mesure, et « le plafond du run ou le budget a coupé avant », qui
+    est une absence de mesure.
 
     L'historique est écrit deux fois, et c'est voulu. Une première fois avant l'escalade : ce nœud
     fait des appels réseau, et une panne à mi-parcours ne doit pas faire perdre des items déjà
@@ -118,13 +138,21 @@ def verify(state: VeilleState) -> VeilleState:
     current_links = {item["link"] for item in state["analyzed_items"]}
     record_analyzed(state["analyzed_items"])
 
+    gate = has_antecedent(
+        {item["link"]: f"{item['title_fr']} {item['summary']}" for item in state["analyzed_items"]},
+        exclude_links=current_links,
+        min_score=VERIFIER_GATE_MIN_SCORE,
+    )
+
     escalated = 0
     budget_exhausted = False
     updated_items: list[AnalyzedItem] = []
-    for item in state["analyzed_items"]:
+    for original in state["analyzed_items"]:
+        item: AnalyzedItem = {**original, "has_antecedent_candidate": gate[original["link"]]}
         escalatable = (
             not budget_exhausted
             and item["category"] in VERIFIER_CATEGORIES
+            and gate[item["link"]]
             and escalated < MAX_VERIFIER_ESCALATIONS_PER_RUN
         )
         if not escalatable:

@@ -50,6 +50,12 @@ class AnalyzedItem(TypedDict):
     # Renseignés par le vérificateur en V2 (cf. docs/cadrage.md §10) ; absents en V1.
     confidence_score: float | None
     corroborated: bool | None
+    # Le portillon d'escalade du vérificateur : l'historique portait-il un antécédent candidat au
+    # moment de la vérification (cf. VERIFIER_GATE_MIN_SCORE) ? Sépare deux `confidence_score` à
+    # None que rien ne distinguait jusque-là : False = mesure (rien à vérifier dans la fenêtre),
+    # True = silence (plafond du run ou budget épuisé avant d'y arriver). Absent des
+    # enregistrements écrits avant le 2026-08-20, où la restriction par catégorie tenait ce rôle.
+    has_antecedent_candidate: bool | None
     # Renseigné par le nœud thread en V3 tranche 1 (cf. docs/cadrage.md §10) ; None tant qu'aucun
     # autre item du même dossier n'a été retrouvé — jamais comblé par une valeur fabriquée.
     thread_id: str | None

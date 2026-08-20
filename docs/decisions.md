@@ -38,7 +38,7 @@ Le dédoublonnage écartant, avant tout appel LLM, ce qui a déjà été vu dans
 
 ## Workflow déterministe et boucle agentique, séparés volontairement
 
-Les nœuds `collect`/`deduplicate`/`analyze` forment un chemin de code fixe : un appel LLM par item, aucune décision dynamique du modèle — c'est le bon compromis pour une tâche de classification traçable et bon marché. Les nœuds `verify` et `thread` sont les deux points d'autonomie réelle : le modèle y dispose d'un outil de recherche dans l'historique des items analysés et décide lui-même s'il l'appelle, combien de fois, avant de conclure. Chaque escalade est bornée en code — nombre d'items par run et nombre d'itérations d'outil par item, plus une restriction aux catégories sensibles côté vérificateur — pour que l'agentivité reste un coût maîtrisé et non proportionnel au volume collecté.
+Les nœuds `collect`/`deduplicate`/`analyze` forment un chemin de code fixe : un appel LLM par item, aucune décision dynamique du modèle — c'est le bon compromis pour une tâche de classification traçable et bon marché. Les nœuds `verify` et `thread` sont les deux points d'autonomie réelle : le modèle y dispose d'un outil de recherche dans l'historique des items analysés et décide lui-même s'il l'appelle, combien de fois, avant de conclure. Chaque escalade est bornée en code — nombre d'items par run, nombre d'itérations d'outil par item, et un portillon déterministe qui décide si l'item mérite un appel — pour que l'agentivité reste un coût maîtrisé et non proportionnel au volume collecté.
 
 ## Le regroupement en threads réutilise ce patron, avec deux divergences assumées
 
@@ -55,7 +55,7 @@ cela corrigeait le classement, pas le portillon.
 **Seuil posé le 2026-08-20**, une fois la campagne d'accumulation close et un échantillon de
 65 paires annoté à la main (§ ci-dessous, `backend/eval/pairs.json`). Repondérée par la population
 réelle de chaque bande de score, la précision estimée passe de 20,2 % à ≥ 10 (le filtre gratuit en
-pratique) à 64,7 % à ≥ 20. `THREAD_GATE_MIN_SCORE = 20` (`backend/config.py`) remplace donc le
+pratique) à 62,0 % à ≥ 20 sur l'échelle effectivement appliquée. `THREAD_GATE_MIN_SCORE = 20` (`backend/config.py`) remplace donc le
 filtre gratuit, appliqué par `search_thread_candidates` via son paramètre `min_score` — mais
 seulement quand la pondération IDF est active (fenêtre ≥ 3 items) : en dessous, le score retombe sur
 un compte brut de tokens partagés, une échelle sur laquelle ce seuil n'a pas de sens, et le filtre
@@ -130,7 +130,60 @@ devrait ».
 Les 52 paires candidates, elles, calibrent le portillon d'escalade : le taux de vrais appariements
 par bande passe de 0 % (score 0-10) à 12,5 % (10-15), 37,5 % (15-20), 50 % (20-25), 75 % (25-30),
 87,5 % (30-40). Repondérée par la population réelle de chaque bande, la précision estimée d'un
-portillon à ≥ 20 est de 64,7 % sur ~62 paires candidates/semaine, contre 20,2 % à ≥ 10 (le filtre
-gratuit qu'il remplace). `THREAD_GATE_MIN_SCORE = 20` (`backend/config.py`) est la conséquence
+portillon à ≥ 20 est de 62,0 % sur ~62 paires candidates/semaine, contre 20,2 % à ≥ 10 (le filtre
+gratuit qu'il remplace). Ce chiffre a été publié à 64,7 % avant d'être corrigé le 2026-08-20 : la
+calibration sort de `backend/eval/candidates.py`, qui pondère en `log(n / (1 + df))`, quand le seuil
+est appliqué par `store._overlap_score`, qui pondère en `log(n / df)`. Rescorées sur l'échelle
+appliquée, 4 des 52 paires annotées changent de bande et la précision estimée tombe à 62,0 % — le
+seuil retenu ne bouge pas, le chiffre qui le justifie si. Une mesure qui ne porte pas exactement sur
+le code qu'elle règle finit toujours par dériver de quelque chose. `THREAD_GATE_MIN_SCORE = 20` (`backend/config.py`) est la conséquence
 directe de cette mesure, appliqué par `search_thread_candidates` (`backend/memory/store.py`) via son
 paramètre `min_score` — jamais câblé au jugé, exactement ce que cet échantillon devait éviter.
+
+## Le vérificateur passe de la catégorie au portillon
+
+Le vérificateur n'escaladait que `export_control` et `contrat_armement`. Cette restriction n'a jamais
+été un choix de sens produit : c'était une borne de coût, posée quand l'arithmétique disait qu'ouvrir
+les cinq catégories coûterait 220 à 440 appels par jour contre un plafond de 200 partagé avec
+l'analyse. Elle bornait la dépense en refusant de regarder quatre catégories sur cinq, pas en
+distinguant les items vérifiables des autres.
+
+**Ce que la mesure du 2026-08-20 a montré, et qui n'était pas l'attendu.** La question posée était
+« le seuil calibré pour le threader se transpose-t-il au vérificateur ? », en cherchant s'il y
+ferait économiser des appels. Réponse : non, et pour une raison qui retourne le problème. Sous la
+règle par catégorie, le vérificateur ne traitait que ~3 items par jour, soit ~7 appels sur 200 — un
+portillon y aurait économisé ~6 appels quotidiens en effaçant 80 % de la couverture de score, c'est-
+à-dire précisément ce que le critère d'acceptation V2 mesure. Le seuil ne vaut rien comme
+économiseur ; il vaut comme *condition de l'extension*. Les cinq catégories sans portillon coûtent
+~71 appels/jour ; avec un portillon à ≥ 20, ~16. C'est ce qui rend l'extension finançable, et c'est
+la branche « pré-filtrer de façon déterministe » restée ouverte depuis le 2026-08-16.
+
+**Ce qui autorisait à croire au portillon, cette fois.** La même mesure, tentée le 2026-08-16 sur
+102 items, avait conclu par la négative : le meilleur appariement correct n'arrivait qu'en dixième
+position, derrière six faux positifs, sur un corpus dominé par une source unique. Rejouée sur les
+261 items accumulés après la révision des sources, elle s'inverse — les deux seuls items que le
+vérificateur a jugés corroborés sur la semaine portent les deux scores d'antécédent les plus élevés
+des vingt items scorés (32,0 et 35,4), quand les dix-huit non corroborés plafonnent à 23,1. Un
+portillon à 20 n'aurait donc perdu aucune corroboration. Le contrôle qualitatif dit la même chose
+que les taux, ce qui n'était pas le cas en août 16 : les paires au-dessus de 30 sont le même contrat
+Raytheon vu par deux sources et la même sélection d'obusier K9, celles autour de 20 sont du bruit
+thématique correctement rejeté par le modèle.
+
+**Le critère d'acceptation V2 est réécrit, pas contourné.** « Score de confiance sur 100 % des
+événements » supposait un budget que le produit n'a pas, et aurait fait payer un appel pour produire
+une non-réponse là où l'historique n'a rien à recouper. Il devient : score sur 100 % des items
+retenus par une règle d'éligibilité explicite et mesurée. Une règle d'éligibilité n'est acceptable
+qu'exposée — l'interface dit donc lequel des silences s'applique à un item sans score : aucun
+antécédent candidat (une mesure : le système a regardé et n'a rien trouvé à recouper), plafond du
+run ou budget épuisé (une absence de mesure), ou item analysé avant l'extension. Les confondre
+laisserait lire un manque là où il y a un résultat.
+
+**Ce qui n'est pas acquis.** L'extension est câblée et éprouvée contre l'historique réel sans appel
+LLM — le portillon rejoué sur le lot du 2026-08-20 retient 11 items sur 27 — mais elle n'a pas
+tourné sur un run complet, le budget quotidien étant épuisé le jour du câblage. Elle ne doit pas
+être présentée comme validée avant. Deux effets restent à observer en réel : le plafond par run
+(`MAX_VERIFIER_ESCALATIONS_PER_RUN = 15`) redevient contraignant les jours à fort volume, alors
+qu'il ne l'était plus sous la règle par catégorie ; et le score de confiance lui-même est, sur les
+vingt items mesurés, presque constant — 0,65 pour douze d'entre eux, 0,82 et 0,92 pour les deux
+corroborés. Il se comporte comme une fonction de `corroborated` plutôt que comme un jugement propre,
+ce qui est un argument de plus pour le renommer `model_confidence`.

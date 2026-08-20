@@ -164,10 +164,29 @@ MAX_STEPS_PER_RUN = int(os.environ["MAX_STEPS_PER_RUN"])
 MAX_LLM_CALLS_PER_DAY = int(os.environ["MAX_LLM_CALLS_PER_DAY"])
 
 # Agent vérificateur (première tranche de V2, cf. docs/cadrage.md §10 et backend/agents/verifier.py).
-# Catégories les plus sensibles côté produit uniquement — pas les 100% du critère d'acceptation V2 ;
-# les items hors de ces catégories gardent confidence_score/corroborated à None plutôt qu'un score
-# fabriqué par heuristique sans base réelle.
-VERIFIER_CATEGORIES = {"export_control", "contrat_armement"}
+# Depuis le 2026-08-20, tout le périmètre MECE est éligible : la restriction à export_control et
+# contrat_armement datait d'une arithmétique de budget (~110 items/jour × 1 à 3 appels contre
+# MAX_LLM_CALLS_PER_DAY=200) que VERIFIER_GATE_MIN_SCORE lève, en ne dépensant un appel que là où
+# l'historique a quelque chose à dire. hors_perimetre n'apparaît pas ici : analyze() l'écarte avant
+# de construire analyzed_items, il n'atteint jamais ce nœud.
+VERIFIER_CATEGORIES = {
+    "export_control",
+    "contrat_armement",
+    "mouvement_militaire",
+    "diplomatie_defense",
+    "programme_industriel",
+}
+# Portillon d'escalade : score de chevauchement pondéré IDF (store._overlap_score) qu'un antécédent
+# doit atteindre pour qu'un item soit escaladé. Ce n'est plus la catégorie qui borne le coût, c'est
+# ce seuil — un item sans antécédent candidat produirait une non-réponse payée 2 à 3 appels.
+# Mesuré le 2026-08-20 sur les 261 items de l'historique accumulé, candidats restreints aux dates
+# antérieures comme le fait exclude_links : à 20, 23 % des items du périmètre sont escaladés
+# (~16 appels/jour contre ~71 sans portillon), et les deux seules corroborations trouvées par le
+# vérificateur sur la semaine (scores d'antécédent 32,0 et 35,4) sont au-dessus — aucun item
+# corroboré n'aurait été perdu, quand le meilleur antécédent des 18 items non corroborés plafonne
+# à 23,1. Même valeur que THREAD_GATE_MIN_SCORE, mais posée sur sa propre mesure : le threader juge
+# l'appariement de dossier, le vérificateur une confirmation indépendante dans le temps.
+VERIFIER_GATE_MIN_SCORE = 20.0
 # Plafond par run, indépendant de MAX_LLM_CALLS_PER_DAY (qui reste le filet de sécurité global) :
 # évite qu'un seul run consomme l'essentiel du budget quotidien sur la vérification seule.
 MAX_VERIFIER_ESCALATIONS_PER_RUN = 15
