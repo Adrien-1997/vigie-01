@@ -29,7 +29,7 @@ interface Props {
 export function WorldMap({ items, selected, onSelect }: Props) {
   const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
 
-  const { byCountry, unlocated, unresolved, deduced, presumed, max } = useMemo(
+  const { byCountry, unlocated, unresolved, deduced, actor, presumed, max } = useMemo(
     () => computeCoverage(items),
     [items],
   );
@@ -160,6 +160,11 @@ export function WorldMap({ items, selected, onSelect }: Props) {
             {deduced} déduit{deduced > 1 ? "s" : ""} d'une localité
           </span>
         )}
+        {actor > 0 && (
+          <span>
+            {actor} par l'acteur
+          </span>
+        )}
         {presumed > 0 && (
           <span>
             {presumed} présumé{presumed > 1 ? "s" : ""} domestique
@@ -169,10 +174,12 @@ export function WorldMap({ items, selected, onSelect }: Props) {
 
       <p className="note" style={{ marginTop: 8 }}>
         Carte construite sur le champ <code>location</code> vérifié par item, pas sur le pays de la source.
-        Trois niveaux de rattachement, comptés séparément ci-dessus et détaillés au survol du pays :
+        Quatre niveaux de rattachement, comptés séparément ci-dessus et détaillés au survol du pays :
         le pays est <strong>cité</strong> par la source ; il est <strong>déduit</strong> par le modèle
-        d'une localité nommée (« Darwin » → Australie) ; ou, à défaut de tout lieu nommé, l'événement
-        est <strong>présumé domestique</strong> au pays du média, sur jugement du contenu de l'article
+        d'une localité nommée (« Darwin » → Australie) ; à défaut de tout lieu rattachable, il est
+        déduit de l'<strong>acteur</strong> nommé (« Houthis » → Yémen), ce qui dit d'où vient
+        l'action et non où elle se produit ; ou, à défaut de tout, l'événement est
+        <strong>présumé domestique</strong> au pays du média, sur jugement du contenu de l'article
         — jamais sur la seule origine du média, qui placerait en Russie une dépêche TASS sur le Yémen.
         Ce qui reste non plaçable est affiché plutôt qu'écarté : la couverture réelle est sous-estimée
         (docs/cadrage.md §11).

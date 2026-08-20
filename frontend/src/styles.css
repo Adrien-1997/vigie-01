@@ -1058,7 +1058,7 @@ button {
   stroke-width: 4.5;
 }
 
-/* Les trois niveaux, toujours listés même à zéro, avec l'échantillon du trait qui les distingue
+/* Les quatre niveaux, toujours listés même à zéro, avec l'échantillon du trait qui les distingue
    dans le flux : c'est la légende qui rend l'encodage lisible sans survol. */
 .pv-key {
   display: flex;

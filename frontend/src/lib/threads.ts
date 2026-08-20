@@ -108,7 +108,7 @@ export interface ThreadModel {
   /** Pays des médias — jamais mélangé au pays de l'événement (`coverage`). Les confondre
    *  rattacherait une dépêche TASS sur le Yémen à la Russie (cf. `resolveLocation`, lib/geo.ts). */
   sourceCountries: Map<string, SourceCountryBucket>;
-  /** Lieu des événements, avec les trois niveaux de provenance et les échecs de rattachement. */
+  /** Lieu des événements, avec les quatre niveaux de provenance et les échecs de rattachement. */
   coverage: Coverage;
   scored: AnalyzedItem[];
   corroborated: number;

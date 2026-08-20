@@ -265,7 +265,7 @@ export function ThreadProvenance({ thread }: { thread: ThreadModel }) {
         </div>
       </div>
 
-      {/* Les trois niveaux sont toujours affichés, y compris à zéro : un niveau masqué parce que
+      {/* Les quatre niveaux sont toujours affichés, y compris à zéro : un niveau masqué parce que
           vide se lirait comme un niveau inexistant. */}
       <ul className="pv-key">
         {(Object.keys(PROVENANCE_LABEL) as Provenance[]).map((p) => (
@@ -283,7 +283,7 @@ export function ThreadProvenance({ thread }: { thread: ThreadModel }) {
       <p className="note pv-note">
         Un trait par article : à gauche le pays du <strong>média</strong>, à droite celui de
         l'<strong>événement</strong>, résolu article par article sur le champ <code>location</code> —
-        jamais sur l'origine du média, qui ne rattache rien à elle seule. Les trois niveaux ne sont
+        jamais sur l'origine du média, qui ne rattache rien à elle seule. Les quatre niveaux ne sont
         jamais additionnés, et ce qui n'est pas plaçable est affiché plutôt qu'écarté
         (docs/cadrage.md §11).
       </p>

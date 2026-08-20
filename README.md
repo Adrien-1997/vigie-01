@@ -21,7 +21,7 @@ disant laquelle des raisons s'applique.
 ![Carte de couverture géographique construite sur le lieu vérifié de chaque événement, avec le décompte des items sans lieu extrait et des lieux non rattachables à un pays](docs/screenshot-map.png)
 
 La carte est construite sur le lieu vérifié de chaque événement, jamais sur le pays de la source,
-et affiche ce qu'elle ne peut pas placer plutôt que de surestimer sa couverture. Trois niveaux de
+et affiche ce qu'elle ne peut pas placer plutôt que de surestimer sa couverture. Quatre niveaux de
 rattachement — cité, déduit, acteur, présumé domestique — restent comptés séparément.
 
 ![Vue Threads : un dossier suivi par trois sources, sa chronologie à l'échelle réelle du temps, et le croisement entre pays du média et pays de l'événement](docs/screenshot-threads.png)
