@@ -97,8 +97,11 @@ l'ingestion, pas du prompt.
 
 Deux mesures antérieures (n=30 puis n=88) et les correctifs de définition qu'elles ont déclenchés
 sont détaillés en [§7](docs/cadrage.md). Ce qui n'est **pas** mesuré est dit comme tel : le
-vérificateur n'a produit que 15 scores (catégories sensibles seules) et le regroupement un seul
-thread de trois items — le critère d'acceptation des threads reste ouvert, faute d'assiette.
+vérificateur n'a produit que 20 scores (catégories sensibles seules, 2 avec antécédent) et le
+regroupement 11 threads. Le critère d'acceptation des threads reste **ouvert** : l'échantillon de
+65 paires qu'il demande a été gelé le 2026-08-20, son annotation manuelle reste à faire — et ce
+qu'il mesurera est une précision, pas un rappel, un dossier que le modèle n'a pas su rapprocher ne
+produisant aucune paire à annoter.
 
 ## Stack
 
@@ -132,7 +135,10 @@ vigie/
 │   │   ├── build_sample.py    # échantillon stratifié pour mesurer la précision
 │   │   ├── annotate.py        # annotation manuelle interactive
 │   │   ├── score.py           # précision mesurée vs cible (cadrage §7)
-│   │   └── candidates.py      # densité de candidats de recoupement, sans appel LLM
+│   │   ├── candidates.py      # densité de candidats de recoupement, sans appel LLM
+│   │   ├── build_pairs.py     # gèle un échantillon de paires (threads + bandes de score)
+│   │   ├── annotate_pairs.py  # annotation manuelle « même dossier ? »
+│   │   └── score_pairs.py     # précision du threading + effet d'un seuil
 │   ├── memory/
 │   │   ├── store.py           # dédoublonnage + historique analysé (recoupement et digest)
 │   │   └── persistence.py     # fichiers JSON locaux (dev) ou Firestore (prod), même interface
@@ -190,15 +196,26 @@ Ouvrir `http://localhost:5173`, puis cliquer sur **Lancer la collecte** (déclen
 
 ## Accumulation d'historique
 
-Le déclenchement automatique (Cloud Scheduler) n'étant pas déployé, le pipeline est lancé une fois
-par jour à la main. Le script journalise **chaque** lancement, y compris ceux qui ne produisent
-rien ou qui échouent : un jour sans nouveauté et un jour non lancé laissent la même trace dans
-l'historique, alors que le premier est une mesure et le second un trou.
+Le déclenchement automatique (Cloud Scheduler) n'étant pas déployé, le pipeline est lancé à la main.
+Le script journalise **chaque** lancement, y compris ceux qui ne produisent rien ou qui échouent :
+un jour sans nouveauté et un jour non lancé laissent la même trace dans l'historique, alors que le
+premier est une mesure et le second un trou.
 
 ```bash
 python -m scripts.daily_run              # le lancement quotidien
 python -m scripts.daily_run --dry-run    # état de la campagne, sans consommer de budget
 ```
+
+**Campagne close le 2026-08-20** (5 lancements, 7 jours continus, 261 items). Elle visait quinze
+jours d'historique avant de rejouer la mesure d'appariement ; la rétention ayant été ramenée le même
+jour de 30 à 7 jours pour le coût de stockage, cette assiette est devenue inatteignable par
+construction — le jour le plus ancien est purgé à chaque run. La mesure a donc été prise sur sept
+jours, et à cette taille elle discrimine (cf. [§10](docs/cadrage.md)).
+
+Conséquence de méthode qui vaut pour la suite : **un corpus se gèle hors du stock au moment où il
+est mesuré**. Une mesure qui relit l'historique à la demande n'est pas rejouable — recalculée une
+semaine plus tard, elle ne retrouve plus aucun des items d'origine, et une annotation manuelle
+serait perdue avec eux.
 
 Raison d'être de la campagne, fenêtre de rattrapage et KPI de couverture : [`docs/decisions.md`](docs/decisions.md).
 
@@ -210,7 +227,7 @@ Raison d'être de la campagne, fenêtre de rattrapage et KPI de couverture : [`d
 - [~] V2 — agent vérificateur : recoupement et score de confiance livrés sur les catégories sensibles ; extension aux autres catégories et `fetch_full_article` à venir
 - [~] V2 — carte de couverture interactive livrée (filtrage par pays depuis le champ `location`) ; sectorisation par thème à venir
 - [~] V3 — raisonnement longitudinal sur l'historique : le pipeline traitait chaque item isolément, alors qu'une part du signal se situe entre les items (un dossier qui évolue, la fréquence d'un pays qui monte). Cinq tranches séquencées, cadrées en [§10](docs/cadrage.md) :
-  - [x] threads d'événements — regrouper les items d'un même dossier, restitués en chronologie à l'échelle réelle du temps avec le croisement média/lieu de l'événement ; critère d'acceptation sur échantillon annoté encore à mesurer, faute d'assez de threads réels
+  - [~] threads d'événements — regrouper les items d'un même dossier, restitués en chronologie à l'échelle réelle du temps avec le croisement média/lieu de l'événement. Code livré ; critère d'acceptation **non atteint** : l'échantillon de 65 paires est gelé (2026-08-20), l'annotation manuelle reste à faire
   - [ ] brief hebdomadaire — tendances de volume par catégorie/pays vs semaine précédente, chiffres issus d'une agrégation et non du modèle
   - [ ] détection de signal faible — concentration inhabituelle d'items corroborés sur un couple pays/catégorie
   - [ ] restitution temporelle — axe de temps des séries de volume, distinct du thread par dossier
