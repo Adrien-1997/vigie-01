@@ -5,6 +5,7 @@ import { countryLabel, resolveLocation, sourceCountryLabel, type LocationMatch }
 const PROVENANCE_SUFFIX = {
   cited: "",
   deduced: " (déduit)",
+  actor: " (acteur)",
   presumed: " (présumé domestique)",
 } as const;
 
@@ -17,7 +18,9 @@ const PROVENANCE_SUFFIX = {
  *
  *  Un lieu extrait mais rattachable à aucun pays est dit tel quel : sans cette mention, la carte
  *  le compte dans sa légende alors que le tableau n'en dit rien, et l'analyste ne peut pas savoir
- *  pourquoi son item manque. */
+ *  pourquoi son item manque. Quand c'est l'acteur qui a placé l'item, l'extrait affiché reste le
+ *  lieu quand il y en avait un — « Strait of Hormuz → Iran (acteur) » dit exactement ce qui s'est
+ *  passé : le détroit n'est d'aucun pays, c'est le protagoniste qui porte le rattachement. */
 function resolutionLabel(item: AnalyzedItem, match: LocationMatch | null): string | null {
   if (!match) return item.location.trim() ? "non rattaché à un pays" : null;
 

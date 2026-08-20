@@ -89,6 +89,7 @@ export function WorldMap({ items, selected, onSelect }: Props) {
                   <title>
                     {bucket.name} — {bucket.total} item{bucket.total > 1 ? "s" : ""}
                     {bucket.deduced > 0 && `, dont ${bucket.deduced} déduit${bucket.deduced > 1 ? "s" : ""}`}
+                    {bucket.actor > 0 && `, dont ${bucket.actor} par l'acteur`}
                     {bucket.presumed > 0 && `, dont ${bucket.presumed} présumé${bucket.presumed > 1 ? "s" : ""}`}
                   </title>
                 )}
@@ -110,6 +111,12 @@ export function WorldMap({ items, selected, onSelect }: Props) {
               <span className="tooltip-note">
                 {hovered.deduced}/{hovered.total} rattaché{hovered.deduced > 1 ? "s" : ""} par déduction du lieu
               </span>
+            )}
+            {hovered.actor > 0 && (
+              <li>
+                {hovered.actor}/{hovered.total} rattaché{hovered.actor > 1 ? "s" : ""} par le protagoniste,
+                sans lieu rattachable — d'où vient l'action, pas où elle se produit
+              </li>
             )}
             {hovered.presumed > 0 && (
               <span className="tooltip-note">

@@ -22,7 +22,7 @@ disant laquelle des raisons s'applique.
 
 La carte est construite sur le lieu vérifié de chaque événement, jamais sur le pays de la source,
 et affiche ce qu'elle ne peut pas placer plutôt que de surestimer sa couverture. Trois niveaux de
-rattachement — cité, déduit, présumé domestique — restent comptés séparément.
+rattachement — cité, déduit, acteur, présumé domestique — restent comptés séparément.
 
 ![Vue Threads : un dossier suivi par trois sources, sa chronologie à l'échelle réelle du temps, et le croisement entre pays du média et pays de l'événement](docs/screenshot-threads.png)
 

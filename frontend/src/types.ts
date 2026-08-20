@@ -25,8 +25,14 @@ export interface AnalyzedItem {
   /** Pays déduit de `location` par le LLM, nom anglais — non vérifiable verbatim.
    *  Optionnel : les digests produits avant son introduction ne le portent pas. */
   location_country?: string;
-  /** Aucun lieu nommé, mais le modèle juge l'événement situé dans le pays de la source
-   *  (`country`). Rattachement présumé, plus faible que `location_country`. */
+  /** Protagoniste nommé par la source, vérifié verbatim, et le pays qu'en déduit le LLM.
+   *  Rattachent l'item au pays de QUI agit, quand aucun théâtre n'est rattachable — un cran
+   *  sous `location_country`, qui répond lui à « où ». Optionnels : absents des digests
+   *  produits avant leur introduction. */
+  actor?: string;
+  actor_country?: string;
+  /** Aucun lieu ni acteur rattachable, mais le modèle juge l'événement situé dans le pays de
+   *  la source (`country`). Rattachement présumé, le plus faible des quatre. */
   domestic_to_source?: boolean;
   confidence_score: number | null;
   corroborated: boolean | null;

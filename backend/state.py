@@ -43,6 +43,15 @@ class AnalyzedItem(TypedDict):
     # ville n'est pas dans le texte) : vide dès que location l'est, et validé contre le référentiel
     # de la carte à l'affichage, où il est signalé comme déduit et non comme cité.
     location_country: str
+    # Protagoniste de l'événement, vérifié verbatim comme location. Distinct du lieu : un article
+    # peut nommer son acteur sans nommer de théâtre rattachable (« Houthis attack eight Saudi oil
+    # tankers » — Mer Rouge et Golfe d'Aden ne sont d'aucun pays).
+    actor: str
+    # Pays déduit de l'acteur ci-dessus, nom anglais. Même statut que location_country — déduction
+    # non vérifiable verbatim, vide dès que `actor` l'est, validée contre le référentiel de la carte
+    # à l'affichage — mais un cran plus faible : elle rattache l'item au pays de qui agit, pas au
+    # pays où les faits ont lieu. Signalée comme telle à l'affichage, jamais fondue dans le déduit.
+    actor_country: str
     # Vrai uniquement si aucun lieu n'a été extrait ET que le modèle juge, sur le contenu, que
     # l'événement se situe dans le pays de la source (champ `country` ci-dessus). Rattachement
     # présumé, plus faible que location_country : distingué comme tel à l'affichage.

@@ -20,18 +20,23 @@ const UNPLACED = "__unplaced";
 const DASH: Record<Provenance, string | undefined> = {
   cited: undefined,
   deduced: "10 8",
+  actor: "3 5",
   presumed: "0.01 9",
 };
 
 const PROVENANCE_LABEL: Record<Provenance, string> = {
   cited: "cité",
   deduced: "déduit",
+  actor: "acteur",
   presumed: "présumé",
 };
 
 const PROVENANCE_HINT: Record<Provenance, string> = {
   cited: "le pays est nommé par la source, vérifié verbatim",
   deduced: "pays déduit par le modèle d'une localité nommée (« Darwin » → Australie)",
+  actor:
+    "aucun lieu rattachable : pays déduit du protagoniste nommé (« Houthis » → Yémen). " +
+    "Dit d'où vient l'action, pas où elle se produit",
   presumed: "aucun lieu nommé : événement jugé domestique au média sur le contenu de l'article",
 };
 
@@ -122,11 +127,12 @@ export function ThreadProvenance({ thread }: { thread: ThreadModel }) {
     const rightBlocks: Block[] = [...thread.coverage.byCountry.entries()]
       .sort((a, b) => b[1].total - a[1].total)
       .map(([key, bucket]) => {
-        const cited = bucket.total - bucket.deduced - bucket.presumed;
+        const cited = bucket.total - bucket.deduced - bucket.actor - bucket.presumed;
         // Le décompte d'abord, comme dans la colonne des médias, pour que les deux se comparent.
         const parts: string[] = [plural(bucket.total, "article")];
         if (cited > 0) parts.push(`${cited} cité${cited > 1 ? "s" : ""}`);
         if (bucket.deduced > 0) parts.push(`${bucket.deduced} déduit${bucket.deduced > 1 ? "s" : ""}`);
+        if (bucket.actor > 0) parts.push(`${bucket.actor} par l'acteur`);
         if (bucket.presumed > 0) parts.push(`${bucket.presumed} présumé${bucket.presumed > 1 ? "s" : ""}`);
         return { key, label: bucket.name, count: bucket.total, detail: parts.join(" · "), y: 0 };
       });
@@ -177,8 +183,13 @@ export function ThreadProvenance({ thread }: { thread: ThreadModel }) {
     return { left: leftBlocks, right: rightBlocks, strands: drawn, height: total };
   }, [thread]);
 
-  const { placed, deduced, presumed } = thread.coverage;
-  const counts: Record<Provenance, number> = { cited: placed - deduced - presumed, deduced, presumed };
+  const { placed, deduced, actor, presumed } = thread.coverage;
+  const counts: Record<Provenance, number> = {
+    cited: placed - deduced - actor - presumed,
+    deduced,
+    actor,
+    presumed,
+  };
 
   return (
     <div className="pv-wrap">

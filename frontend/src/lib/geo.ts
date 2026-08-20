@@ -328,18 +328,23 @@ function matchLoose(name: string): CountryFeature | null {
   return found;
 }
 
-/** Sur quoi repose le rattachement d'un item à un pays. Trois niveaux, du plus fort au plus faible :
+/** Sur quoi repose le rattachement d'un item à un pays. Quatre niveaux, du plus fort au plus faible :
  *
  *  - `cited` : la source nomme le pays. Vérifié verbatim.
  *  - `deduced` : la source nomme un lieu, le modèle en déduit le pays (« Darwin » → Australie).
  *    Pas d'ancrage verbatim sur le pays, mais un lieu réel et vérifié en dessous.
- *  - `presumed` : la source ne nomme aucun lieu ; le modèle juge sur le contenu que l'événement
- *    se situe dans le pays du média. Rien n'est nommé, seul le sujet est interprété.
+ *  - `actor` : la source ne nomme aucun lieu rattachable, mais nomme le protagoniste, dont le
+ *    modèle déduit le pays (« Houthis » → Yémen). Un cran sous `deduced` et pas une variante de
+ *    celui-ci : les deux déduisent un pays, mais `deduced` répond « où », `actor` répond « qui ».
+ *    Une frappe houthie en Mer Rouge n'a pas lieu au Yémen — la carte montre alors d'où vient
+ *    l'action, pas où elle se produit, et doit le dire.
+ *  - `presumed` : la source ne nomme ni lieu ni acteur rattachable ; le modèle juge sur le contenu
+ *    que l'événement se situe dans le pays du média. Rien n'est nommé, seul le sujet est interprété.
  *
- *  Les trois placent l'item sur la carte, mais n'engagent pas la même chose. Les confondre dans un
+ *  Les quatre placent l'item sur la carte, mais n'engagent pas la même chose. Les confondre dans un
  *  total unique ferait lire une couverture présumée comme une couverture citée — la distinction
  *  disparaîtrait exactement au moment où elle compte. */
-export type Provenance = "cited" | "deduced" | "presumed";
+export type Provenance = "cited" | "deduced" | "actor" | "presumed";
 
 export interface LocationMatch {
   feature: CountryFeature;
@@ -368,6 +373,7 @@ const SOURCE_COUNTRY_NE: Record<string, string> = {
 export interface Locatable {
   location: string;
   location_country?: string;
+  actor_country?: string;
   domestic_to_source?: boolean;
   country: string;
 }
@@ -382,9 +388,15 @@ export interface Locatable {
  *     seul qui n'a aucun ancrage dans le texte, donc celui qu'on valide le plus strictement.
  *     Le vocabulaire étant fermé, un pays inventé retombe en « non rattaché » plutôt que de
  *     peindre le mauvais pays.
- *  4. À défaut de tout lieu nommé, le pays de la source — mais seulement si le modèle a jugé
- *     l'événement domestique sur le contenu de l'article. Le pays du média ne suffit jamais seul :
- *     appliqué sans ce jugement, il ferait peindre en Russie une dépêche TASS sur le Yémen.
+ *  4. `actor_country`, déduit du protagoniste (« Houthis » → « Yemen »), validé aussi strictement
+ *     que `location_country`. Il intervient dans deux cas distincts : aucun lieu n'est nommé, ou
+ *     un lieu est nommé mais n'appartient à aucun pays (« Strait of Hormuz »). Dans les deux, la
+ *     source nomme quelqu'un — le laisser tomber perdrait une information écrite noir sur blanc.
+ *     Il passe APRÈS le déduit : quand le théâtre est rattachable, c'est lui qui répond à « où ».
+ *  5. À défaut de tout lieu ET de tout acteur rattachables, le pays de la source — mais seulement
+ *     si le modèle a jugé l'événement domestique sur le contenu de l'article. Le pays du média ne
+ *     suffit jamais seul : appliqué sans ce jugement, il ferait peindre en Russie une dépêche TASS
+ *     sur le Yémen.
  *
  *  L'ordre compte : le déduit passe après l'approché pour ne pas effacer une provenance réelle,
  *  mais avant l'échec, pour rattraper les localités (« Darwin ») et les cas où l'approché refuse
@@ -394,10 +406,16 @@ export interface Locatable {
  *  rattachable (haute mer, région transnationale, organisation). Ces cas sont comptés et affichés
  *  par la carte plutôt que silencieusement écartés (cf. docs/cadrage.md §11). */
 export function resolveLocation(item: Locatable): LocationMatch | null {
+  // Déduit de l'acteur, résolu ici parce que les deux branches ci-dessous s'en servent : sans lieu
+  // du tout, et avec un lieu que rien ne rattache. Validé aussi strictement que `location_country`
+  // — vocabulaire fermé du topojson, pas de repli approché.
+  const byActor = item.actor_country ? matchExact(item.actor_country) : null;
+
   if (!item.location.trim()) {
     // Sans lieu nommé, `location_country` n'a plus rien à quoi se rattacher — le backend le vide
     // déjà, l'invariant est réaffirmé ici pour que les appelants n'aient pas à le connaître.
-    // Seul le rattachement présumé survit à ce cas, puisqu'il ne dépend d'aucun lieu.
+    // Restent l'acteur, qui ne dépend d'aucun lieu, puis le présumé.
+    if (byActor) return { feature: byActor, provenance: "actor" };
     if (!item.domestic_to_source) return null;
     const origin = SOURCE_COUNTRY_NE[item.country];
     const f = origin ? BY_NAME.get(normalize(origin)) : null;
@@ -411,7 +429,12 @@ export function resolveLocation(item: Locatable): LocationMatch | null {
   if (loose) return { feature: loose, provenance: "cited" };
 
   const deduced = item.location_country ? matchExact(item.location_country) : null;
-  return deduced ? { feature: deduced, provenance: "deduced" } : null;
+  if (deduced) return { feature: deduced, provenance: "deduced" };
+
+  // Un lieu est nommé mais n'appartient à aucun pays (« Strait of Hormuz », « Red Sea ») : le
+  // backend a laissé `location_country` vide à dessein, c'est une réponse et non un manque. On ne
+  // force pas ce lieu dans un pays — on rattache l'item à l'acteur, en le disant.
+  return byActor ? { feature: byActor, provenance: "actor" } : null;
 }
 
 /** Pays des sources (backend/config.py). "INT" = source multi-pays / institutionnelle UE. */

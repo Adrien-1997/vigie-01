@@ -21,6 +21,8 @@ class _FakeAnalysis:
         citation,
         location="",
         location_country="",
+        actor="",
+        actor_country="",
         domestic=False,
         title_fr="Titre",
         summary="Résumé",
@@ -29,6 +31,8 @@ class _FakeAnalysis:
         self.citation = citation
         self.location = location
         self.location_country = location_country
+        self.actor = actor
+        self.actor_country = actor_country
         self.domestic = domestic
         self.title_fr = title_fr
         self.summary = summary
@@ -293,3 +297,97 @@ def test_analyze_refuses_domestic_presumption_for_international_sources(monkeypa
     )
 
     assert result["analyzed_items"][0]["domestic_to_source"] is False
+
+
+def test_analyze_blanks_unverified_actor_instead_of_trusting_it(monkeypatch):
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis(
+            "mouvement_militaire",
+            "source text about a strike",
+            actor="Nobodyans",
+            actor_country="Yemen",
+        ),
+    )
+
+    result = analyst.analyze({"raw_items": [_raw_item("Actual source text about a strike.")], "analyzed_items": []})
+
+    assert result["analyzed_items"][0]["actor"] == ""
+    # Même raisonnement que pour le lieu : `actor_country` n'a pas d'ancrage verbatim propre, son
+    # seul ancrage est l'acteur dont il est déduit. Acteur rejeté, pays rejeté — sinon un
+    # protagoniste inventé placerait l'item sur la carte par un champ non couvert par le garde-fou.
+    assert result["analyzed_items"][0]["actor_country"] == ""
+
+
+def test_analyze_keeps_actor_country_when_the_actor_is_verified(monkeypatch):
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis(
+            "mouvement_militaire",
+            "Houthis attacked eight tankers",
+            actor="Houthis",
+            actor_country="Yemen",
+        ),
+    )
+
+    result = analyst.analyze(
+        {"raw_items": [_raw_item("Houthis attacked eight tankers in the Red Sea.")], "analyzed_items": []}
+    )
+
+    assert result["analyzed_items"][0]["actor"] == "Houthis"
+    assert result["analyzed_items"][0]["actor_country"] == "Yemen"
+
+
+def test_analyze_verifies_the_actor_against_the_title_as_well_as_the_body(monkeypatch):
+    # Le protagoniste est le plus souvent nommé dans le titre, et les extraits RSS sont tronqués :
+    # vérifier contre le seul corps effacerait des extractions correctes, comme mesuré pour le lieu.
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis(
+            "diplomatie_defense",
+            "a plan was uncovered",
+            actor="Iran",
+            actor_country="Iran",
+        ),
+    )
+
+    item = _raw_item("a plan was uncovered by intelligence services.")
+    item["title"] = "Iran plante Angriffe auf Militärziele in Europa"
+
+    result = analyst.analyze({"raw_items": [item], "analyzed_items": []})
+
+    assert result["analyzed_items"][0]["actor"] == "Iran"
+    assert result["analyzed_items"][0]["actor_country"] == "Iran"
+
+
+def test_analyze_keeps_actor_country_independent_of_the_location_verdict(monkeypatch):
+    # Le cas du détroit d'Ormuz : un lieu est bien nommé et vérifié, mais n'appartient à aucun pays,
+    # donc `location_country` reste vide à dessein. L'acteur doit survivre à ce vide — c'est lui qui
+    # portera le rattachement à l'affichage, sans quoi l'item disparaît de la carte.
+    monkeypatch.setattr(
+        analyst,
+        "classify_item",
+        lambda item: _FakeAnalysis(
+            "diplomatie_defense",
+            "the Strait of Hormuz has been and will always remain Iranian",
+            location="Strait of Hormuz",
+            location_country="",
+            actor="Iranian",
+            actor_country="Iran",
+        ),
+    )
+
+    result = analyst.analyze(
+        {
+            "raw_items": [_raw_item("the Strait of Hormuz has been and will always remain Iranian, an adviser said.")],
+            "analyzed_items": [],
+        }
+    )
+
+    analyzed = result["analyzed_items"][0]
+    assert analyzed["location"] == "Strait of Hormuz"
+    assert analyzed["location_country"] == ""
+    assert analyzed["actor_country"] == "Iran"

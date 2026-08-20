@@ -7,6 +7,7 @@ export interface CountryBucket {
   total: number;
   /** Parts du total rattachées autrement que par citation de la source (cf. Provenance). */
   deduced: number;
+  actor: number;
   presumed: number;
   byCategory: Map<Category, number>;
 }
@@ -21,6 +22,7 @@ export interface Coverage {
   unlocated: number;
   unresolved: number;
   deduced: number;
+  actor: number;
   presumed: number;
   /** Plus grand nombre d'items sur un même pays, pour calibrer la rampe de la carte. */
   max: number;
@@ -39,6 +41,7 @@ export function computeCoverage(items: AnalyzedItem[]): Coverage {
   let unlocated = 0;
   let unresolved = 0;
   let deduced = 0;
+  let actor = 0;
   let presumed = 0;
 
   for (const item of items) {
@@ -53,13 +56,23 @@ export function computeCoverage(items: AnalyzedItem[]): Coverage {
     const key = countryKey(match.feature);
     let bucket = byCountry.get(key);
     if (!bucket) {
-      bucket = { name: countryLabel(match.feature), total: 0, deduced: 0, presumed: 0, byCategory: new Map() };
+      bucket = {
+        name: countryLabel(match.feature),
+        total: 0,
+        deduced: 0,
+        actor: 0,
+        presumed: 0,
+        byCategory: new Map(),
+      };
       byCountry.set(key, bucket);
     }
     bucket.total += 1;
     if (match.provenance === "deduced") {
       bucket.deduced += 1;
       deduced += 1;
+    } else if (match.provenance === "actor") {
+      bucket.actor += 1;
+      actor += 1;
     } else if (match.provenance === "presumed") {
       bucket.presumed += 1;
       presumed += 1;
@@ -68,7 +81,7 @@ export function computeCoverage(items: AnalyzedItem[]): Coverage {
   }
 
   const max = Math.max(0, ...[...byCountry.values()].map((b) => b.total));
-  return { byCountry, placed, unlocated, unresolved, deduced, presumed, max };
+  return { byCountry, placed, unlocated, unresolved, deduced, actor, presumed, max };
 }
 
 /** Ce que la couverture ne place pas, énoncé par cause et jamais agrégé en un « reste » muet.

@@ -81,11 +81,17 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
 4. Fournis une citation : un extrait VERBATIM du texte source, dans sa langue d'origine (copié-collé
    exact, jamais traduit) qui justifie le résumé. Si aucun extrait ne justifie clairement le résumé,
    catégorise en hors_perimetre et laisse la citation vide.
-5. Fournis location : le pays, la mer ou la région principale concernée par l'article, extrait
-   VERBATIM du titre ou du texte source. Privilégie le nom de pays quand il est écrit tel quel.
+5. Fournis location : le THÉÂTRE de l'événement — le pays, la mer ou la région où les faits se
+   déroulent — extrait VERBATIM du titre ou du texte source. Ce n'est pas le pays de l'acteur :
+   « Iran plante Angriffe auf Militärziele in Europa » a pour théâtre « Europa », l'Iran étant
+   l'acteur (question 7). Privilégie le nom de pays quand il est écrit tel quel.
    Laisse vide si aucun lieu n'est explicitement nommé — ne déduis jamais un lieu qui n'est pas
    écrit noir sur blanc, et ne transforme pas un gentilé en nom de pays (« Ukrainian » n'autorise
    pas « Ukraine » si le mot « Ukraine » n'apparaît nulle part).
+   En revanche une forme FLÉCHIE du nom de pays reste le nom de pays, et doit être extraite telle
+   qu'elle est écrite : l'allemand « Dänemarks Verteidigung » donne location = « Dänemarks »,
+   le russe « Германии » donne « Германии ». C'est le mot du pays, décliné par la grammaire — pas
+   un gentilé, qui lui désigne les habitants ou l'origine (« dänische », « ukrainien »).
 6. Fournis location_country : le pays souverain dans lequel se trouve le lieu de location, en
    ANGLAIS et sous sa forme usuelle (« Australia », « Ukraine », « United States of America »).
    Contrairement aux champs précédents ce n'est PAS un extrait du texte : c'est la seule déduction
@@ -97,13 +103,29 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
    - le lieu est dans plusieurs pays sans qu'un seul domine ;
    - la souveraineté du lieu est contestée ou ferait l'objet d'un désaccord entre États.
    Un champ vide est toujours préférable à un rattachement arbitré.
-7. Fournis domestic : l'événement rapporté se situe-t-il dans le pays de la source, indiqué en tête
+7. Fournis actor : le PROTAGONISTE principal de l'événement — l'État, le gouvernement, la force
+   armée, le groupe armé, l'industriel ou le responsable politique qui agit — extrait VERBATIM du
+   titre ou du texte source. « Houthis attack eight Saudi oil tankers » donne « Houthis » ;
+   « Iran plante Angriffe » donne « Iran ». Contrairement à location, un gentilé est ici accepté
+   s'il désigne l'acteur (« Iranian control » donne « Iranian »), puisque c'est l'acteur qui est
+   demandé, pas un lieu. Laisse vide si l'article ne nomme aucun protagoniste, ou si le
+   protagoniste est l'organisation internationale elle-même (ONU, OTAN, UE).
+8. Fournis actor_country : le pays souverain auquel se rattache actor, en ANGLAIS et sous sa forme
+   usuelle. Comme location_country, c'est une DÉDUCTION, pas un extrait : « Houthis » donne
+   « Yemen », « Trump » donne « United States of America », « Iranian » donne « Iran », « Airbus
+   Helicopters » donne « France ». Ce champ ne sert qu'à placer sur la carte un item dont le
+   théâtre n'est pas rattachable. Laisse vide dans ces trois cas :
+   - actor est vide ;
+   - l'acteur est multinational ou sans pays : OTAN, ONU, UE, Union africaine, coalition ;
+   - l'acteur se rattache à plusieurs pays sans qu'un seul domine (consortium, coentreprise).
+   Un champ vide est toujours préférable à un rattachement arbitré.
+9. Fournis domestic : l'événement rapporté se situe-t-il dans le pays de la source, indiqué en tête
    du message ? Réponds d'après le contenu de l'article, jamais d'après la seule origine du média :
    couvrir l'étranger est le cas le plus fréquent, et un média qui rapporte un événement survenu
    dans un pays tiers doit donner false même si l'article est écrit depuis son propre pays.
    true correspond à l'actualité intérieure : institution, administration, industrie ou forces
    armées du pays de la source agissant sur son propre territoire. Dans le doute, false.
-   Ce champ ne dispense pas de renseigner location et location_country : réponds aux trois."""
+   Ce champ ne dispense pas de renseigner les quatre précédents : réponds à tous."""
 
 
 class _Analysis(BaseModel):
@@ -117,6 +139,16 @@ class _Analysis(BaseModel):
     location_country: str = Field(
         description="Pays souverain du lieu de location, nom anglais usuel ; vide si le lieu n'est dans aucun pays, "
         "est transnational ou de souveraineté contestée"
+    )
+    actor: str = Field(
+        default="",
+        description="Extrait verbatim nommant le protagoniste principal (État, force, groupe armé, industriel, "
+        "responsable) ; vide si aucun n'est nommé ou si le protagoniste est une organisation internationale",
+    )
+    actor_country: str = Field(
+        default="",
+        description="Pays souverain de l'acteur, nom anglais usuel ; vide si l'acteur est multinational, "
+        "sans pays, ou se rattache à plusieurs pays sans qu'un seul domine",
     )
     domestic: bool = Field(
         description="L'événement rapporté se situe-t-il dans le pays de la source ? false dès que l'article "
@@ -307,6 +339,24 @@ def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[An
         # carte, et le marque comme déduit (frontend/src/lib/geo.ts).
         location_country = result.location_country.strip() if location else ""
 
+        # L'acteur suit exactement la même discipline que le lieu, un cran plus bas sur la carte.
+        # Mesuré sur l'historique du 2026-08-20 : cinq items sans rattachement nommaient pourtant
+        # leur protagoniste dans le titre (« Houthis », « Iran », « Trump »). Le théâtre était soit
+        # absent, soit non rattachable (Mer Rouge, Golfe d'Aden, détroit d'Ormuz) — refuser d'y
+        # placer l'item est correct pour un *lieu*, mais laissait perdre une information que la
+        # source nomme noir sur blanc.
+        #
+        # Le garde-fou verbatim s'applique donc à `actor` comme à `location` : un protagoniste non
+        # retrouvé dans le texte est un protagoniste inventé, et il est écarté plutôt que signalé.
+        # Le titre entre dans le texte vérifiable pour la même raison que plus haut — c'est là que
+        # le protagoniste est nommé le plus souvent, les extraits RSS étant tronqués.
+        actor = result.actor if _extract_verified(result.actor, f"{item['title']} {clean_text}") else ""
+
+        # Et `actor_country` est à `actor` ce que `location_country` est à `location` : la déduction
+        # n'est autorisée que si l'extrait qui la porte a été vérifié, sinon un acteur rejeté au
+        # verbatim reviendrait placer l'item sur la carte par la porte de derrière.
+        actor_country = result.actor_country.strip() if actor else ""
+
         # Repli de dernier recours pour les items sans aucun lieu nommé : le modèle a jugé, sur le
         # contenu de l'article, que l'événement se situe dans le pays de la source. Trois bornes.
         #
@@ -337,6 +387,8 @@ def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[An
             citation=result.citation,
             location=location,
             location_country=location_country,
+            actor=actor,
+            actor_country=actor_country,
             domestic_to_source=domestic_to_source,
             confidence_score=None,
             corroborated=None,
