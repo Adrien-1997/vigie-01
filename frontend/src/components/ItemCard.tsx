@@ -41,7 +41,7 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
         {item.corroborated === false && (
           <span
             className="badge quiet"
-            title="Aucun article antérieur trouvé sur ce dossier dans l'historique (30 jours glissants), et les items du même lot de collecte ne comptent pas. Un signal isolé n'est pas pour autant faux — c'est précisément ce que la veille cherche à détecter."
+            title="Aucun article antérieur trouvé sur ce dossier dans l'historique (7 jours glissants), et les items du même lot de collecte ne comptent pas. Un signal isolé n'est pas pour autant faux — c'est précisément ce que la veille cherche à détecter."
           >
             Sans antécédent
           </span>

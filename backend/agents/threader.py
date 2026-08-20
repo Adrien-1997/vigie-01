@@ -52,7 +52,7 @@ class _ThreadDecision(BaseModel):
 def _make_thread_tool(current_link: str):
     @tool
     def find_thread_candidates(query: str) -> str:
-        """Cherche dans l'historique des items déjà analysés (jusqu'à 30 jours, y compris le run en
+        """Cherche dans l'historique des items déjà analysés (jusqu'à 7 jours, y compris le run en
         cours) ceux qui pourraient couvrir le même dossier. `query` : mots-clés pertinents (ex. noms
         d'entreprises, de pays, type de contrat)."""
         results = search_thread_candidates(query, exclude_link=current_link, limit=5)

@@ -12,6 +12,14 @@ Ce script est l'outil de cette campagne : un lancement par jour, à la main, jus
 l'assiette soit suffisante. Il n'a pas vocation à survivre à la campagne — en production, le
 déclenchement passe par Cloud Scheduler → Cloud Run (cf. backend/api/main.py).
 
+**Clôture (2026-08-20).** La campagne s'arrête à cinq lancements et sept jours d'historique continu
+(2026-08-14 → 2026-08-20), sous l'assiette de quinze jours visée ci-dessus — décision explicite de
+passer à l'évaluation plutôt que de continuer l'accumulation. Le même jour, la rétention a été
+réduite à 7 jours (`RELATED_ITEMS_WINDOW_DAYS`, cf. backend/memory/store.py) pour limiter le coût de
+stockage : l'historique glissant ne peut donc plus dépasser cette profondeur, et la mesure de
+recoupement ci-dessus ne pourra plus être rejouée à plus grande échelle sur l'historique courant.
+Le script reste utilisable pour un lancement ponctuel, mais n'est plus piloté vers l'objectif initial.
+
 **Pourquoi un journal, et pourquoi il ne se déduit pas de l'historique analysé.** Un jour sans item
 neuf (tout écarté par le dédoublonnage) et un jour où le lancement a été oublié laissent exactement
 la même trace dans `.analyzed_history.json` : aucune. Le premier est une mesure — le flux n'a rien

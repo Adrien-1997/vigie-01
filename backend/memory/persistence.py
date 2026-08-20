@@ -142,8 +142,8 @@ class FirestorePersistence:
 
     Modèle de données : le budget est un document unique (compteur, incrémenté en transaction),
     les liens vus et l'historique analysé sont des collections indexées sur `date` — un document
-    Firestore est plafonné à 1 Mo, ce qui exclut de stocker 30 jours d'items dans un seul blob
-    comme le fait le backend fichier.
+    Firestore est plafonné à 1 Mo, ce qui exclut de stocker plusieurs jours d'items dans un seul
+    blob comme le fait le backend fichier.
     """
 
     # Firestore plafonne un batch d'écriture à 500 opérations.

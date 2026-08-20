@@ -7,7 +7,7 @@ import { SearchIcon } from "./Icons";
 const VERIFICATION_ROWS: { key: Verification; label: string; hint: string }[] = [
   { key: "all", label: "Tous les items", hint: "Aucun filtre de vérification" },
   { key: "scored", label: "Vérifiés", hint: "Items passés par l'agent vérificateur" },
-  { key: "corroborated", label: "Avec antécédent", hint: "Un article antérieur de l'historique 30 jours traite du même dossier" },
+  { key: "corroborated", label: "Avec antécédent", hint: "Un article antérieur de l'historique 7 jours traite du même dossier" },
   {
     key: "review",
     label: "À arbitrer",

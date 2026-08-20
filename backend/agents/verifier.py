@@ -43,7 +43,7 @@ class _VerifierResult(BaseModel):
 def _make_search_tool(exclude_links: set[str]):
     @tool
     def search_related_items(query: str) -> str:
-        """Cherche dans l'historique des items déjà analysés (jusqu'à 30 jours) ceux qui pourraient
+        """Cherche dans l'historique des items déjà analysés (jusqu'à 7 jours) ceux qui pourraient
         corroborer ou apporter du contexte sur le dossier en cours. `query` : mots-clés pertinents
         (ex. noms d'entreprises, de pays, type de contrat)."""
         results = search_related(query, exclude_links=exclude_links, limit=5)
