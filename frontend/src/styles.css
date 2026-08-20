@@ -43,6 +43,8 @@
   --map-land: #ececE6;
   --map-stroke: #fcfcfb;
 
+  --logo-ground: #ffffff;
+
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(11, 11, 11, 0.06), 0 4px 16px rgba(11, 11, 11, 0.05);
@@ -154,10 +156,13 @@ button {
   cursor: pointer;
 }
 
+/* L'anneau épouse le rayon de l'élément — il ne le redéfinit pas. La règle imposait
+   `border-radius: 4px` à *toute* cible du focus : sur un champ à 6 px, les coins changeaient de
+   forme au moment même où l'anneau apparaissait, et le liseré se lisait comme mal calé. Un décalage
+   de 1 px suffit à le détacher, et laisse l'anneau tenir dans les conteneurs à défilement. */
 :focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline-offset: 1px;
 }
 
 /* ── Ossature ───────────────────────────────────────────────────────────── */
@@ -172,6 +177,17 @@ button {
    premier rendu, avant la première mesure — pas de valeur en dur ailleurs. */
 :root {
   --chrome-h: 66px;
+  /* Gabarit de page, partagé par la barre et le corps : c'est ce qui aligne la marque sur le rail
+     et le décompte sur la colonne de contenu. */
+  --page-max: 1480px;
+  --gutter: 24px;
+}
+
+/* Bande pleine largeur, contenu calé sur le gabarit. Une largeur maximale posée sur l'élément
+   lui-même aurait aligné le contenu mais rétréci du même coup son fond et son filet, qui se
+   seraient arrêtés au milieu de l'écran au lieu de traverser la barre. */
+.page-rule {
+  padding-inline: max(var(--gutter), calc((100% - var(--page-max)) / 2 + var(--gutter)));
 }
 
 /* Barre de titre, bandeaux de run et barre de commande dans un seul bloc collant. Empilés en
@@ -187,25 +203,37 @@ button {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 18px;
   flex-wrap: wrap;
-  padding: 14px 24px;
-}
-
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
+  padding-block: 9px;
 }
 
 .brand strong {
-  font-size: 15px;
-  letter-spacing: -0.01em;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-.brand span {
-  color: var(--ink-muted);
-  font-size: 12px;
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* Repli à deux rangées, décidé plutôt que subi. Laissée à `flex-wrap`, la barre se cassait en
+   trois rangées sans rapport — la marque seule, puis les vues, puis les listes déroulantes, et les
+   actions rejetées seules tout en bas à droite — parce que chaque groupe passait à la ligne pour
+   son propre compte. Ici le bloc de commandes prend une rangée entière sous « marque + actions »,
+   qui restent ensemble : deux rangées lisibles au lieu de quatre alignements sans rapport. */
+@media (max-width: 1180px) {
+  .topbar {
+    row-gap: 10px;
+  }
+  .commandbar {
+    order: 2;
+    flex-basis: 100%;
+  }
 }
 
 .topbar-spacer {
@@ -263,13 +291,24 @@ button {
   color: var(--ink);
 }
 
+/* Plafond de largeur, centré. Sans lui, un écran de 2 366 px étale une carte d'événement sur
+   2 000 px : le résumé tient sur une ligne de 250 caractères, que l'œil ne peut pas suivre d'une
+   fin de ligne au début de la suivante, et les mentions alignées à droite se retrouvent à un mètre
+   de la catégorie qu'elles qualifient. La veille se lit, elle ne se contemple pas en panoramique. */
 .body {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
   gap: 24px;
   align-items: start;
-  padding: 20px 24px 56px;
+  /* `width` explicite : `.body` est un enfant de flex-column, où une marge automatique sur l'axe
+     transversal annule l'étirement et ramène la boîte à son contenu — la largeur maximale ne
+     s'appliquait qu'à un bloc déjà rétréci à 1 052 px. */
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 20px var(--gutter) 56px;
 }
+
 
 /* Le rail défile pour lui-même. Collé sous l'en-tête sans hauteur bornée, il gardait son haut
    épinglé et poussait son bas — les derniers pays, le bouton de réinitialisation — hors de l'écran
@@ -284,33 +323,47 @@ button {
   max-height: calc(100dvh - var(--chrome-h) - 40px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  /* `--axis` disparaît sur la surface sombre : la barre est l'unique indice qu'il reste du rail
-     sous le pli. */
-  scrollbar-color: color-mix(in srgb, var(--ink-muted) 60%, transparent) transparent;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  /* Les contours de focus des lignes de filtre affleurent le bord du rail : sans ce filet, la
-     zone de défilement les rogne. */
-  padding: 2px 8px 2px 2px;
-  margin: -2px -8px -2px -2px;
+  /* Réserve pour l'anneau de focus (2 px de trait + 1 px de décalage) et pour l'ascenseur. Sans
+     elle, la zone de défilement rogne le liseré des champs et des lignes de filtre qui affleurent
+     ses bords. Les marges négatives annulent la réserve dans la grille : le rail reste aligné sur
+     la colonne de contenu. */
+  padding: 4px 4px 4px 4px;
+  margin: -4px -4px -4px -4px;
+  scrollbar-gutter: stable;
+}
+
+/* Ascenseur visible, et non l'ascenseur flottant que Chrome escamote au repos : il est le seul
+   indice qu'il reste des filtres sous le pli. Une piste teintée dessine la gouttière même quand le
+   curseur est ailleurs — sans elle, la colonne semblait simplement coupée. */
+.rail {
+  scrollbar-width: thin;
+  /* `--axis` (#383835 en sombre) sur la page à #0d0d0d : l'ascenseur était peint mais invisible.
+     `--ink-muted` est le seul gris tenu au contraste dans les deux thèmes. */
+  scrollbar-color: var(--ink-muted) var(--grid);
 }
 
 .rail::-webkit-scrollbar {
-  width: 9px;
-}
-
-.rail::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink-muted) 60%, transparent);
-  background-clip: content-box;
+  width: 10px;
 }
 
 .rail::-webkit-scrollbar-track {
-  background: transparent;
+  border-radius: 999px;
+  background: var(--grid);
+}
+
+.rail::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--ink-muted);
+  background-clip: content-box;
+}
+
+.rail::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-2);
+  background-clip: content-box;
 }
 
 /* Tiroir de filtres sous 900 px, où le rail passe en pleine largeur au-dessus du contenu. */
@@ -377,18 +430,19 @@ button {
 
 /* Séparateurs portés par les cellules, pas par un fond de grille visible dans les gouttières :
    avec auto-fit, la dernière rangée incomplète laisserait sinon une case fantôme colorée. */
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+.kpis-panel {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
-/* Occupe la grille entière : la portée vaut pour toutes les tuiles, pas pour la première. */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
 .kpis-scope {
-  grid-column: 1 / -1;
   margin: 0;
   padding: 8px 16px;
   border-bottom: 1px solid var(--hairline);
@@ -405,15 +459,12 @@ button {
   border-left: 1px solid var(--hairline);
 }
 
-/* La mention de portée s'insère avant la première tuile : sans le second sélecteur, celle-ci
-   cesse d'être `:first-child` et se dédouble d'un filet contre la bordure du panneau. */
-.kpi:first-child,
-.kpis-scope + .kpi {
+.kpi:first-child {
   border-left: none;
 }
 
 .kpi-value {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
   line-height: 1.15;
   letter-spacing: -0.02em;
@@ -432,6 +483,7 @@ button {
 }
 
 .kpi-note {
+  max-width: 42ch;
   font-size: 11px;
   color: var(--ink-muted);
 }
@@ -617,24 +669,34 @@ button {
    les cinquante mille pixels, une commande qui défile est une commande perdue. */
 .commandbar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0 24px 12px;
-}
-
-.commandbar-row {
-  display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
-/* Reprise des filtres actifs, à côté du décompte qu'ils expliquent. */
+/* Les listes déroulantes cèdent la place avant le sélecteur de vue, qui est la commande la plus
+   utilisée : elles se serrent au lieu d'entraîner un passage à la ligne du groupe entier. */
+.commandbar-selects select {
+  min-width: 0;
+}
+
+.commandbar-selects {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Rangée de reprise, sous la barre et non dedans : elle n'existe que quand un filtre est actif,
+   et une hauteur qui apparaît puis disparaît au milieu d'une ligne de commandes les ferait sauter. */
 .chips {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  padding-block: 7px;
+  border-top: 1px solid var(--hairline);
+  background: var(--page);
 }
 
 .chips-label {
@@ -731,6 +793,7 @@ button {
 }
 
 .result-count {
+  white-space: nowrap;
   font-size: 13px;
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
@@ -745,7 +808,7 @@ button {
   color: var(--ink-muted);
 }
 
-.commandbar select {
+.commandbar-selects select {
   padding: 6px 10px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
@@ -760,16 +823,124 @@ button {
 .list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .card {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px auto;
+  column-gap: 22px;
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  padding: 16px 18px 14px 21px;
+  padding: 15px 18px 13px 21px;
   overflow: hidden;
+}
+
+.card-main {
+  min-width: 0;
+}
+
+/* La colonne d'état. Un filet et un intitulé la constituent en aparté : alignées à droite sans
+   rien qui les rattache, les mentions flottaient au bord de la carte sans qu'on sache de quoi
+   elles parlaient. Alignées à gauche derrière un filet, elles se lisent comme la fiche de
+   vérification de l'article — et gardent la bande verticale constante qui rend la liste balayable. */
+.card-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--hairline);
+}
+
+.card-side::before {
+  content: "Vérification";
+  margin-bottom: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* Les mentions occupent la largeur de l'aparté : des pastilles de largeurs différentes empilées
+   redonnaient le bord déchiqueté qu'on vient de supprimer. */
+.card-side > .badge,
+.card-side > .conf {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+/* Cartouche de marque, au bord droit. Fond clair constant : voir SourceLogo.tsx. */
+.card-logo {
+  display: flex;
+  align-items: flex-start;
+}
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--radius-sm);
+  background: var(--logo-ground);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  overflow: hidden;
+}
+
+.logo img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+/* Repli sans image : le monogramme reprend le fond de la page, pour ne pas se faire passer pour
+   une marque qu'on aurait récupérée. */
+.logo-mono {
+  background: var(--page);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Sous cette largeur la colonne d'état mangerait le texte : elle repasse en rangée sous le titre,
+   à gauche, où elle se lit comme une suite de mentions plutôt que comme une colonne. */
+@media (max-width: 760px) {
+  .card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 10px;
+  }
+  .card-logo {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  /* En rangée sous l'article, pas au-dessus : `order: -1` faisait passer l'état de vérification
+     devant la catégorie et le titre, si bien que la carte s'ouvrait sur « Non vérifié » avant
+     d'avoir dit de quoi elle parlait. L'intitulé reste affiché — sans le filet vertical qui les
+     rattachait, des pastilles nues en fin de carte ne diraient plus de quoi elles sont l'état. */
+  .card-side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-top: 10px;
+    padding-left: 0;
+    border-top: 1px solid var(--hairline);
+    border-left: none;
+  }
+  .card-side::before {
+    margin-bottom: 0;
+  }
+  .card-side > .badge,
+  .card-side > .conf {
+    width: auto;
+  }
 }
 
 /* Filet de catégorie : redondant avec le badge, jamais seul porteur de sens. */
@@ -783,32 +954,11 @@ button {
 
 .card:hover {
   border-color: var(--axis);
+  background: var(--surface-raised);
 }
 
-.card-top {
-  display: flex;
-  align-items: center;
-  gap: 8px 10px;
-  flex-wrap: wrap;
+.card-main > .badge {
   margin-bottom: 9px;
-}
-
-/* Bloc d'état de vérification, aligné à droite pour former une colonne le long de la liste. Il
-   passe sous la catégorie plutôt que de comprimer les libellés quand la carte devient étroite. */
-.card-flags {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-left: auto;
-}
-
-@media (max-width: 620px) {
-  .card-flags {
-    margin-left: 0;
-    justify-content: flex-start;
-  }
 }
 
 .badge {
@@ -847,11 +997,11 @@ button {
 }
 
 .card h3 {
-  margin: 0 0 6px;
-  font-size: 15px;
+  margin: 0 0 7px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.35;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.011em;
 }
 
 .card h3 a {
@@ -865,18 +1015,20 @@ button {
 }
 
 .card .summary {
-  margin: 0 0 10px;
+  margin: 0 0 11px;
   color: var(--ink-2);
   font-size: 13.5px;
+  line-height: 1.55;
 }
 
+/* Pièce justificative, pas corps de texte : elle doit rester consultable sans disputer au résumé
+   français la première lecture. D'où un fond retiré au profit d'un simple filet — le pavé plein
+   pesait plus lourd que le résumé qu'il vient étayer. */
 .citation {
-  margin: 0 0 10px;
-  padding: 8px 12px;
-  border-left: 2px solid var(--axis);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--page);
-  color: var(--ink-2);
+  margin: 0 0 11px;
+  padding: 1px 0 1px 12px;
+  border-left: 2px solid var(--grid);
+  color: var(--ink-muted);
   font-size: 12.5px;
   font-style: italic;
 }
@@ -907,12 +1059,12 @@ button {
 
 .card-foot a {
   margin-left: auto;
-  color: var(--accent);
+  color: var(--ink-muted);
   text-decoration: none;
-  font-weight: 500;
 }
 
 .card-foot a:hover {
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -1631,7 +1783,7 @@ button {
 /* Bandeaux de run. Ils empruntaient la classe .topbar, donc sa position collante : trois éléments
    épinglés au même décalage se recouvraient. Ils vivent maintenant dans le bloc `.chrome`. */
 .notice {
-  padding: 10px 24px;
+  padding-block: 10px;
   border-top: 1px solid var(--hairline);
   font-size: 13px;
 }

@@ -11,7 +11,7 @@ import {
 } from "./lib/filters";
 import { buildThread, groupThreads } from "./lib/threads";
 import { FilterRail } from "./components/FilterRail";
-import { CommandBar, type View } from "./components/CommandBar";
+import { CommandBar, FilterChips, type View } from "./components/CommandBar";
 import { KpiStrip } from "./components/KpiStrip";
 import { ItemCard } from "./components/ItemCard";
 import { ThreadGroupCard } from "./components/ThreadGroup";
@@ -183,36 +183,58 @@ export default function App() {
     <div className="app">
       {/* Un seul bloc collant plutôt que trois empilés au même décalage : les bandeaux de run
           partagent la position de la barre de titre et se recouvraient au défilement. */}
+      {/* Une seule barre. Séparer une barre de titre d'une barre de commande donnait deux bandes
+          quasi vides sur un écran large — un logo à gauche, un bouton à droite, un vide au milieu —
+          pour 120 px de hauteur volés au digest. La marque, les vues, le décompte et les réglages
+          partagent donc la même ligne : la barre porte enfin quelque chose. */}
       <div className="chrome" ref={chromeRef}>
-        <header className="topbar">
-          <div className="brand">
+        <header className="topbar page-rule">
+          <div className="brand" title="Veille défense & contrôle export">
             <strong>VIGIE</strong>
-            <span>veille défense &amp; contrôle export</span>
           </div>
 
-          <div className="topbar-spacer" />
-
-          {status.kind === "ready" && status.digest.generated_at && (
-            <span className="stamp">
-              Dernière collecte {relativeStamp(status.digest.generated_at)} ·{" "}
-              {windowLabel(status.digest.window_days)}
-            </span>
+          {status.kind === "ready" && (
+            <CommandBar
+              view={view}
+              onView={setView}
+              threadCount={threads.length}
+              visible={visible.length}
+              total={items.length}
+              sort={sort}
+              onSort={setSort}
+              sortLabels={SORT_LABEL}
+              windowDays={status.digest.window_days}
+              maxWindowDays={status.digest.max_window_days}
+              windowChoices={WINDOW_CHOICES}
+              onWindow={setWindowDays}
+              windowLabel={windowLabel}
+            />
           )}
 
-          <button
-            className="icon-btn"
-            onClick={() => setTheme(effectiveTheme === "dark" ? "light" : "dark")}
-            aria-label={effectiveTheme === "dark" ? "Passer en thème clair" : "Passer en thème sombre"}
-            title={effectiveTheme === "dark" ? "Thème clair" : "Thème sombre"}
-          >
-            {effectiveTheme === "dark" ? <SunIcon /> : <MoonIcon />}
-          </button>
+          <div className="topbar-actions">
+            {status.kind === "ready" && status.digest.generated_at && (
+              <span className="stamp" title={`Fenêtre servie : ${windowLabel(status.digest.window_days)}`}>
+                collecte {relativeStamp(status.digest.generated_at)}
+              </span>
+            )}
 
-          <button className="btn" onClick={run} disabled={running}>
-            <RefreshIcon />
-            {running ? "Collecte en cours…" : "Lancer la collecte"}
-          </button>
+            <button
+              className="icon-btn"
+              onClick={() => setTheme(effectiveTheme === "dark" ? "light" : "dark")}
+              aria-label={effectiveTheme === "dark" ? "Passer en thème clair" : "Passer en thème sombre"}
+              title={effectiveTheme === "dark" ? "Thème clair" : "Thème sombre"}
+            >
+              {effectiveTheme === "dark" ? <SunIcon /> : <MoonIcon />}
+            </button>
+
+            <button className="btn" onClick={run} disabled={running}>
+              <RefreshIcon />
+              {running ? "Collecte…" : "Collecter"}
+            </button>
+          </div>
         </header>
+
+        {status.kind === "ready" && <FilterChips filters={filters} onChange={setFilters} />}
 
         {running && (
           <div className="running-bar" role="status" aria-label="Collecte en cours">
@@ -221,35 +243,15 @@ export default function App() {
         )}
 
         {runError && (
-          <div className="notice notice-error" role="alert">
+          <div className="notice notice-error page-rule" role="alert">
             {runError}
           </div>
         )}
 
         {runNotice && (
-          <div className="notice notice-warn" role="status">
+          <div className="notice notice-warn page-rule" role="status">
             {runNotice}
           </div>
-        )}
-
-        {status.kind === "ready" && (
-          <CommandBar
-            view={view}
-            onView={setView}
-            threadCount={threads.length}
-            visible={visible.length}
-            total={items.length}
-            filters={filters}
-            onFilters={setFilters}
-            sort={sort}
-            onSort={setSort}
-            sortLabels={SORT_LABEL}
-            windowDays={status.digest.window_days}
-            maxWindowDays={status.digest.max_window_days}
-            windowChoices={WINDOW_CHOICES}
-            onWindow={setWindowDays}
-            windowLabel={windowLabel}
-          />
         )}
       </div>
 
