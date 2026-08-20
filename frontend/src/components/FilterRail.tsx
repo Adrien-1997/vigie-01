@@ -167,13 +167,17 @@ export function FilterRail({ items, filters, onChange, searchRef }: Props) {
                 {row.label}
               </button>
             ))}
-            {/* Depuis le 2026-08-20 le vérificateur couvre les cinq catégories du périmètre : ce
-                qui borne son coût est le portillon d'escalade, pas la catégorie
-                (VERIFIER_GATE_MIN_SCORE, backend/config.py). */}
-            <p className="note" style={{ marginTop: 8 }}>
-              Un item n'est escaladé au vérificateur que si l'historique porte un antécédent assez
-              proche pour être recoupé. Les autres sortent sans score plutôt qu'avec une valeur par
-              défaut — l'absence de score se lit sur la carte d'item, qui en donne la raison.
+            {/* Quatre lignes d'explication en permanence dans le rail, c'est autant de filtres
+                repoussés sous le pli : le fond passe en infobulle, la ligne visible ne garde que
+                ce qui se lit d'un coup d'œil. Depuis le 2026-08-20 le vérificateur couvre les cinq
+                catégories du périmètre — ce qui borne son coût est le portillon d'escalade, pas la
+                catégorie (VERIFIER_GATE_MIN_SCORE, backend/config.py). */}
+            <p
+              className="note"
+              style={{ marginTop: 6 }}
+              title="Un item n'est escaladé au vérificateur que si l'historique porte un antécédent assez proche pour être recoupé. Les autres sortent sans score plutôt qu'avec une valeur par défaut, et la carte d'item donne laquelle des trois raisons s'applique."
+            >
+              Escaladé seulement si l'historique a un antécédent à recouper.
             </p>
           </section>
 

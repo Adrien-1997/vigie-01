@@ -179,7 +179,7 @@ button {
   --chrome-h: 66px;
   /* Gabarit de page, partagé par la barre et le corps : c'est ce qui aligne la marque sur le rail
      et le décompte sur la colonne de contenu. */
-  --page-max: 1480px;
+  --page-max: 1280px;
   --gutter: 24px;
 }
 
@@ -325,7 +325,7 @@ button {
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   /* Réserve pour l'anneau de focus (2 px de trait + 1 px de décalage) et pour l'ascenseur. Sans
      elle, la zone de défilement rogne le liseré des champs et des lignes de filtre qui affleurent
      ses bords. Les marges négatives annulent la réserve dans la grille : le rail reste aligné sur
@@ -340,9 +340,10 @@ button {
    curseur est ailleurs — sans elle, la colonne semblait simplement coupée. */
 .rail {
   scrollbar-width: thin;
-  /* `--axis` (#383835 en sombre) sur la page à #0d0d0d : l'ascenseur était peint mais invisible.
-     `--ink-muted` est le seul gris tenu au contraste dans les deux thèmes. */
-  scrollbar-color: var(--ink-muted) var(--grid);
+  /* Pouce franc — `--ink-muted` est le seul gris tenu au contraste dans les deux thèmes — sur une
+     piste transparente. Une piste teintée traçait une rainure grise permanente le long des
+     filtres ; l'indice de défilement doit se voir quand il sert, pas meubler la colonne. */
+  scrollbar-color: var(--ink-muted) transparent;
 }
 
 .rail::-webkit-scrollbar {
@@ -350,8 +351,7 @@ button {
 }
 
 .rail::-webkit-scrollbar-track {
-  border-radius: 999px;
-  background: var(--grid);
+  background: transparent;
 }
 
 .rail::-webkit-scrollbar-thumb {
@@ -403,6 +403,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  container-type: inline-size;
 }
 
 /* ── Panneaux ───────────────────────────────────────────────────────────── */
@@ -414,7 +415,7 @@ button {
 }
 
 .panel-pad {
-  padding: 16px;
+  padding: 14px;
 }
 
 .panel-title {
@@ -437,9 +438,26 @@ button {
   overflow: hidden;
 }
 
+/* Flex plutôt que `repeat(auto-fit, minmax(...))` : la grille laissait la dernière rangée
+   incomplète s'arrêter au milieu du bandeau — quatre tuiles alignées puis une cinquième seule
+   devant trois pistes vides. En flex, les tuiles d'une rangée entamée s'étirent pour la remplir,
+   quel que soit le nombre qui y tient. */
 .kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.kpi {
+  flex: 1 1 170px;
+}
+
+/* Empêche le seul découpage vraiment disgracieux : quatre tuiles alignées puis une cinquième
+   étirée seule sur toute la rangée suivante. En élargissant la base sous cette largeur, on tombe
+   sur 3 + 2, deux rangées équilibrées. */
+@container (max-width: 880px) {
+  .kpi {
+    flex-basis: 240px;
+  }
 }
 
 .kpis-scope {
@@ -456,12 +474,15 @@ button {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
   border-left: 1px solid var(--hairline);
+  border-top: 1px solid var(--hairline);
+  /* Les filets sont tirés vers l'extérieur : sur une rangée entamée, une bordure gauche en début
+     de ligne et une bordure haute sur la première rangée se colleraient au cadre du panneau. */
+  margin: -1px 0 0 -1px;
 }
 
-.kpi:first-child {
-  border-left: none;
-}
+
 
 .kpi-value {
   font-size: 24px;
@@ -565,7 +586,7 @@ button {
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -828,9 +849,6 @@ button {
 
 .card {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 200px auto;
-  column-gap: 22px;
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
@@ -838,48 +856,25 @@ button {
   overflow: hidden;
 }
 
-.card-main {
-  min-width: 0;
-}
-
-/* La colonne d'état. Un filet et un intitulé la constituent en aparté : alignées à droite sans
-   rien qui les rattache, les mentions flottaient au bord de la carte sans qu'on sache de quoi
-   elles parlaient. Alignées à gauche derrière un filet, elles se lisent comme la fiche de
-   vérification de l'article — et gardent la bande verticale constante qui rend la liste balayable. */
-.card-side {
+/* Rangée d'en-tête : catégorie, puis mentions et marque poussées à droite. */
+.card-top {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  min-width: 0;
-  padding-left: 18px;
-  border-left: 1px solid var(--hairline);
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
-.card-side::before {
-  content: "Vérification";
-  margin-bottom: 1px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
-
-/* Les mentions occupent la largeur de l'aparté : des pastilles de largeurs différentes empilées
-   redonnaient le bord déchiqueté qu'on vient de supprimer. */
-.card-side > .badge,
-.card-side > .conf {
-  justify-content: flex-start;
-  width: 100%;
-}
-
-/* Cartouche de marque, au bord droit. Fond clair constant : voir SourceLogo.tsx. */
-.card-logo {
+.card-flags {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
+/* Cartouche de marque. Fond clair constant : voir SourceLogo.tsx. */
 .logo {
   display: grid;
   place-items: center;
@@ -908,38 +903,18 @@ button {
   letter-spacing: 0.02em;
 }
 
-/* Sous cette largeur la colonne d'état mangerait le texte : elle repasse en rangée sous le titre,
-   à gauche, où elle se lit comme une suite de mentions plutôt que comme une colonne. */
+/* En dessous, les mentions prennent leur propre rangée plutôt que de comprimer leurs libellés,
+   et la marque reste sur la ligne de la catégorie — qui dit de quoi parle la carte. */
 @media (max-width: 760px) {
-  .card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 10px;
+  .card-flags {
+    order: 2;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
   }
-  .card-logo {
-    grid-row: 1;
-    grid-column: 2;
-  }
-  /* En rangée sous l'article, pas au-dessus : `order: -1` faisait passer l'état de vérification
-     devant la catégorie et le titre, si bien que la carte s'ouvrait sur « Non vérifié » avant
-     d'avoir dit de quoi elle parlait. L'intitulé reste affiché — sans le filet vertical qui les
-     rattachait, des pastilles nues en fin de carte ne diraient plus de quoi elles sont l'état. */
-  .card-side {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    padding-top: 10px;
-    padding-left: 0;
-    border-top: 1px solid var(--hairline);
-    border-left: none;
-  }
-  .card-side::before {
-    margin-bottom: 0;
-  }
-  .card-side > .badge,
-  .card-side > .conf {
-    width: auto;
+  .card .logo {
+    order: 1;
+    margin-left: auto;
   }
 }
 
@@ -957,9 +932,6 @@ button {
   background: var(--surface-raised);
 }
 
-.card-main > .badge {
-  margin-bottom: 9px;
-}
 
 .badge {
   display: inline-flex;

@@ -11,12 +11,13 @@ Le raisonnement derrière les décisions techniques — garde-fous, invariants d
 restitution, conduite de la campagne — est dans [`docs/decisions.md`](docs/decisions.md). Le cadrage
 produit est dans [`docs/cadrage.md`](docs/cadrage.md).
 
-![Digest VIGIE : bandeau d'indicateurs, filtres par catégorie et par état de vérification, fiches d'événement portant la citation vérifiée, la provenance « média d'État » et l'état de vérification explicite ; en tête de liste, un thread rassemblant trois sources sur un même dossier](docs/screenshot.png)
+![Digest VIGIE : barre de commande unique (vues, décompte, profondeur, tri), rail de filtres à gauche, bandeau d'indicateurs, et fiches d'événement portant la citation vérifiée, la marque du média, la provenance « média d'État » et l'état de vérification explicite ; en tête de liste, un thread rassemblant trois sources sur un même dossier](docs/screenshot.png)
 
 Chaque fiche porte les signaux qui engagent la confiance — citation vérifiée verbatim, antécédent
 trouvé ou non dans l'historique, provenance « média d'État », score du vérificateur — et un item
 que le vérificateur n'a pas escaladé sort **sans** score plutôt qu'avec un zéro trompeur, en
-disant laquelle des raisons s'applique.
+disant laquelle des raisons s'applique. Ces mentions sont alignées d'une fiche à l'autre : sur un
+digest de deux cents items, elles se balaient en une passe au lieu de se relire fiche par fiche.
 
 ![Carte de couverture géographique construite sur le lieu vérifié de chaque événement, avec le décompte des items sans lieu extrait et des lieux non rattachables à un pays](docs/screenshot-map.png)
 
@@ -24,7 +25,7 @@ La carte est construite sur le lieu vérifié de chaque événement, jamais sur 
 et affiche ce qu'elle ne peut pas placer plutôt que de surestimer sa couverture. Quatre niveaux de
 rattachement — cité, déduit, acteur, présumé domestique — restent comptés séparément.
 
-![Vue Threads : un dossier suivi par trois sources, sa chronologie à l'échelle réelle du temps, et le croisement entre pays du média et pays de l'événement](docs/screenshot-threads.png)
+![Vue Threads : un dossier suivi par plusieurs sources, sa chronologie à l'échelle réelle du temps, et le croisement entre pays du média et pays de l'événement, avec les quatre niveaux de rattachement comptés séparément](docs/screenshot-threads.png)
 
 Un **thread** rassemble les articles qui couvrent le même dossier — mêmes parties, même opération —
 et non le même thème. Sa chronologie est à l'échelle réelle du temps : l'écart entre les parutions
@@ -152,11 +153,13 @@ vigie/
 │   └── requirements-gcp.txt     # dépendance Firestore, déploiement uniquement
 ├── frontend/                    # React + TypeScript + Vite, appelle l'API réelle
 │   └── src/
+│       ├── assets/logos/        # marques des médias, collectées hors ligne (cf. scripts/)
 │       ├── components/          # digest filtrable, threads (chronologie + provenance),
 │       │                        #   carte de couverture, vue tableau
 │       └── lib/                 # taxonomie, filtres/tri, résolution des lieux, modèle de thread
 ├── scripts/
-│   └── daily_run.py             # lancement quotidien + journal de campagne (hors service)
+│   ├── daily_run.py             # lancement quotidien + journal de campagne (hors service)
+│   └── fetch_logos.py           # collecte unique des logos des médias (hors service)
 ├── tests/                       # pytest — LLM et flux RSS mockés
 ├── docs/
 │   ├── cadrage.md               # cadrage produit (problématique, MECE, risques, KPIs)
@@ -193,6 +196,10 @@ cd frontend
 npm install
 npm run dev
 ```
+
+Les marques des médias affichées sur les fiches sont versionnées avec le front ; elles ne sont
+recollectées que si `backend/config.py` gagne une source (`python -m scripts.fetch_logos`, sans
+appel LLM). Une source sans logo s'affiche en monogramme.
 
 Ouvrir `http://localhost:5173`, puis cliquer sur **Lancer la collecte** (déclenche `POST /run` — pipeline complet, ~5 min, consomme du budget LLM réel). L'URL de l'API est `http://localhost:8080` par défaut, surchargeable via `VITE_API_BASE`.
 
