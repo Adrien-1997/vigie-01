@@ -86,7 +86,7 @@ def _thread_item(item: AnalyzedItem) -> str | None:
     ]
 
     for _ in range(MAX_THREAD_STEPS_PER_ITEM):
-        check_and_increment_llm_call()
+        check_and_increment_llm_call("thread")
         response = llm.invoke(messages)
         if not response.tool_calls:
             break
@@ -95,7 +95,7 @@ def _thread_item(item: AnalyzedItem) -> str | None:
             result = search_tool.invoke(call["args"])
             messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
 
-    check_and_increment_llm_call()
+    check_and_increment_llm_call("thread")
     concluder = ChatAnthropic(model=MODEL, temperature=0).with_structured_output(_ThreadDecision)
     messages.append(HumanMessage(content="Conclus maintenant avec same_story_as."))
     conclusion = concluder.invoke(messages)

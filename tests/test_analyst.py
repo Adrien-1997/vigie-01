@@ -265,7 +265,7 @@ def test_classify_item_repairs_an_out_of_enum_category_from_the_raw_tool_call(mo
             return {"raw": _FakeRaw(), "parsed": None, "parsing_error": None}
 
     monkeypatch.setattr(analyst, "_llm", _FakeLLM())
-    monkeypatch.setattr(analyst, "check_and_increment_llm_call", lambda: None)
+    monkeypatch.setattr(analyst, "check_and_increment_llm_call", lambda node=None: None)
 
     result = analyst.classify_item(
         {

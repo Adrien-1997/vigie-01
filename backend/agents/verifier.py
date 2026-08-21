@@ -87,7 +87,7 @@ def _verify_item(item: AnalyzedItem, exclude_links: set[str]) -> tuple[float, bo
     ]
 
     for _ in range(MAX_VERIFIER_STEPS_PER_ITEM):
-        check_and_increment_llm_call()
+        check_and_increment_llm_call("verify")
         response = llm.invoke(messages)
         if not response.tool_calls:
             break
@@ -96,7 +96,7 @@ def _verify_item(item: AnalyzedItem, exclude_links: set[str]) -> tuple[float, bo
             result = search_tool.invoke(call["args"])
             messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
 
-    check_and_increment_llm_call()
+    check_and_increment_llm_call("verify")
     concluder = ChatAnthropic(model=MODEL, temperature=0).with_structured_output(_VerifierResult)
     messages.append(HumanMessage(content="Conclus maintenant avec ton score de confiance et corroborated."))
     conclusion = concluder.invoke(messages)

@@ -227,7 +227,7 @@ def classify_item(item: RawItem) -> _Analysis:
     # tel pour ne pas contaminer l'extraction de location, qui doit rester un verbatim du texte :
     # une source russe couvrant l'Ukraine ne doit pas se mettre à produire « Russia ».
     origin = _SOURCE_COUNTRY_NAME.get(item["country"], "an international or multi-country outlet")
-    check_and_increment_llm_call()
+    check_and_increment_llm_call("analyze")
     result = _llm.invoke(
         [
             ("system", SYSTEM_PROMPT),

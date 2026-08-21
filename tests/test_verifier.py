@@ -69,7 +69,7 @@ def _fake_chat_anthropic(tool_responses, conclusion, invoke_counter=None):
 
 
 def _patch_llm(monkeypatch, tool_responses=(), conclusion=None, invoke_counter=None):
-    monkeypatch.setattr(verifier, "check_and_increment_llm_call", lambda: None)
+    monkeypatch.setattr(verifier, "check_and_increment_llm_call", lambda node=None: None)
     monkeypatch.setattr(
         verifier,
         "ChatAnthropic",
@@ -210,7 +210,7 @@ def test_verify_truncates_escalation_without_losing_the_items_already_analyzed(m
 
     calls = [0]
 
-    def _budget():
+    def _budget(node=None):
         # Laisse passer le premier item (boucle d'outil + conclusion), coupe pendant le second.
         calls[0] += 1
         if calls[0] > 2:

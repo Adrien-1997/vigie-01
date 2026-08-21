@@ -21,6 +21,7 @@ from backend.agents.collector import collect
 from backend.agents.threader import thread_events
 from backend.agents.verifier import verify
 from backend.config import MAX_STEPS_PER_RUN
+from backend.guardrails import reset_call_tally
 from backend.memory.store import deduplicate
 from backend.state import VeilleState
 
@@ -47,6 +48,11 @@ def run_pipeline() -> VeilleState:
     """Lève langgraph.errors.GraphRecursionError si MAX_STEPS_PER_RUN est dépassé
     (garde-fou §8 "boucle d'agent incontrôlée", non négociable — cf. docs/cadrage.md).
     """
+    # Le tally par nœud est une mesure du run, pas du jour : le remettre à zéro ici, seul point
+    # d'entrée d'un run, évite que deux runs servis par le même processus (l'API ne redémarre pas
+    # entre deux POST /run) cumulent leurs répartitions. Sans effet sur le plafond quotidien, qui
+    # est persistant et n'a surtout pas à être remis à zéro par un run.
+    reset_call_tally()
     graph = build_graph()
     return graph.invoke(
         {"raw_items": [], "analyzed_items": [], "truncated": False},

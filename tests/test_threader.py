@@ -74,7 +74,7 @@ def _fake_chat_anthropic(tool_responses, conclusion, invoke_counter=None):
 
 
 def _patch_llm(monkeypatch, tool_responses=(), conclusion=None, invoke_counter=None):
-    monkeypatch.setattr(threader, "check_and_increment_llm_call", lambda: None)
+    monkeypatch.setattr(threader, "check_and_increment_llm_call", lambda node=None: None)
     monkeypatch.setattr(
         threader,
         "ChatAnthropic",
@@ -202,7 +202,7 @@ def test_thread_truncates_without_losing_the_items_already_analyzed(monkeypatch)
 
     calls = [0]
 
-    def _budget():
+    def _budget(node=None):
         # Laisse passer le premier item (boucle d'outil + conclusion), coupe pendant le second.
         calls[0] += 1
         if calls[0] > 2:
@@ -318,7 +318,7 @@ def test_thread_leaves_an_item_unchecked_when_the_budget_dies_before_its_conclus
 
     calls = [0]
 
-    def _budget():
+    def _budget(node=None):
         calls[0] += 1
         if calls[0] > 2:
             raise threader.BudgetExceeded("plafond atteint")
@@ -348,3 +348,27 @@ def test_thread_persists_the_silence_state_of_items_it_did_not_attach(monkeypatc
     stored = {r["link"]: r for r in store.load_digest(1)}["a"]
     assert stored["has_thread_candidate"] is False
     assert stored["thread_checked"] is False
+
+
+def test_thread_charges_its_llm_calls_to_the_thread_node(monkeypatch):
+    """Vérifie le câblage de bout en bout, pas seulement la signature : le garde-fou réel est laissé
+    en place (seul le modèle est simulé), donc l'imputation constatée est celle que produira un vrai
+    run. Sans ce test, un nœud pourrait passer un mauvais label sans qu'aucune assertion ne bouge —
+    et la répartition, qui sert à arbitrer le budget (docs/cadrage.md §11), désignerait le mauvais
+    coupable."""
+    import backend.guardrails as guardrails
+
+    monkeypatch.setattr(guardrails, "MAX_LLM_CALLS_PER_DAY", 50)
+    monkeypatch.setattr(threader, "ChatAnthropic", _fake_chat_anthropic((), _FakeConclusion()))
+
+    # Fenêtre < 3 items : la pondération IDF n'est pas active et le portillon retombe sur « au moins
+    # un candidat » (cf. store.search_thread_candidates). C'est le cas canonique du thread, et le
+    # seul qui garantisse une escalade ici — ce test mesure l'imputation, pas le seuil.
+    store.record_analyzed([_analyzed_item("hist-1", title_fr="Rafale vendu à la Grèce", summary="Dassault confirme")])
+    item = _analyzed_item("new", title_fr="Rafale vendu à la Grèce", summary="Dassault confirme")
+
+    threader.thread_events({"raw_items": [], "analyzed_items": [item]})
+
+    tally = guardrails.calls_by_node()
+    assert set(tally) == {"thread"}, f"le nœud thread impute ailleurs : {tally}"
+    assert tally["thread"] > 0

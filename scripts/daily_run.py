@@ -74,7 +74,7 @@ from backend.config import (
     SOURCES,
 )
 from backend.graph import run_pipeline
-from backend.guardrails import remaining_calls_today
+from backend.guardrails import calls_by_node, remaining_calls_today
 from backend.memory.persistence import get_persistence
 from backend.memory.store import RELATED_ITEMS_WINDOW_DAYS
 
@@ -203,10 +203,15 @@ def main(dry_run: bool) -> int:
     started = datetime.now(UTC)
     clock = time.monotonic()
     analyzed, truncated, error = 0, False, None
+    by_node: dict[str, int] = {}
     try:
         result = run_pipeline()
         analyzed = len(result["analyzed_items"])
         truncated = result["truncated"]
+        # Relevé après le run, avant tout autre appel : c'est la répartition de *ce* run entre les
+        # nœuds. Sans elle, on sait qu'un plafond global a tronqué le lot mais pas lequel des nœuds
+        # a consommé quoi — l'arbitrage du partage restait donc impossible (docs/cadrage.md §11).
+        by_node = calls_by_node()
     except Exception as exc:  # noqa: BLE001 — voir ci-dessous
         # Rattrapage volontairement large : un échec non journalisé est précisément le trou que ce
         # journal existe pour éviter. L'exception est enregistrée puis rendue par le code de sortie.
@@ -227,6 +232,7 @@ def main(dry_run: bool) -> int:
         "analyzed": analyzed,
         "truncated": truncated,
         "llm_calls": llm_calls,
+        "llm_calls_by_node": by_node,
         "history_before": history_before,
         "history_after": history_after,
         "history_by_date": by_date_after,
@@ -252,6 +258,12 @@ def main(dry_run: bool) -> int:
         f"sur {len(by_date_after)} jour{_s(len(by_date_after))}."
     )
     print(f"Appels LLM consommés : {llm_calls if llm_calls is not None else 'indéterminé (jour changé)'}.")
+    if by_node:
+        # Le total par nœud peut être inférieur à `llm_calls` si un autre processus a consommé du
+        # budget pendant le run : les deux chiffres ne mesurent pas la même chose (ce run vs. le
+        # jour), et les réconcilier de force masquerait précisément ce cas.
+        detail = ", ".join(f"{node} {count}" for node, count in sorted(by_node.items(), key=lambda p: -p[1]))
+        print(f"  Répartition par nœud : {detail} (total {sum(by_node.values())}).")
     _print_campaign(entries + [entry])
 
     return 1 if error else 0
