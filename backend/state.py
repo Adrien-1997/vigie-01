@@ -68,6 +68,23 @@ class AnalyzedItem(TypedDict):
     # Renseigné par le nœud thread en V3 tranche 1 (cf. docs/cadrage.md §10) ; None tant qu'aucun
     # autre item du même dossier n'a été retrouvé — jamais comblé par une valeur fabriquée.
     thread_id: str | None
+    # Les deux champs qui rendent un thread_id nul lisible, exactement comme has_antecedent_candidate
+    # le fait pour un confidence_score nul. Sans eux, `thread_id: None` porte trois états que rien ne
+    # sépare : « l'historique ne portait aucun dossier candidat », qui est une mesure ; « le modèle a
+    # regardé et n'a rien rapproché », qui en est une plus forte encore ; et « le plafond du run ou le
+    # budget a coupé avant d'y arriver », qui est une absence de mesure. Constaté au run du
+    # 2026-08-21 : 17 items éligibles, 3 rattachés, et les 14 autres indiscernables à l'écran d'items
+    # sans dossier — l'affichage disait donc quelque chose de faux.
+    #
+    # Portillon d'escalade du threader (THREAD_GATE_MIN_SCORE) : l'historique portait-il un candidat
+    # au-dessus du seuil ? Écrit sur tous les items, escaladés ou non — la sonde ne coûte aucun appel.
+    has_thread_candidate: bool | None
+    # Le modèle a-t-il conclu sur cet item ? False couvre aussi bien « jamais soumis » (portillon non
+    # franchi, plafond du run, budget déjà épuisé) que « soumis mais interrompu par BudgetExceeded
+    # avant la conclusion » : dans les deux cas rien n'a été jugé. Un booléen distinct du portillon
+    # parce que, contrairement au vérificateur, une escalade du threader ne produit pas toujours un
+    # résultat — le modèle peut légitimement conclure qu'aucun candidat ne couvre le même dossier.
+    thread_checked: bool | None
 
 
 class VeilleState(TypedDict):

@@ -2,6 +2,7 @@ import type { AnalyzedItem } from "../types";
 import { CATEGORY_LABEL, CATEGORY_VAR, LANG_LABEL } from "../lib/taxonomy";
 import { countryLabel, resolveLocation, sourceCountryLabel } from "../lib/geo";
 import { ConfidenceGauge } from "./ConfidenceGauge";
+import { ThreadState } from "./ThreadState";
 import { AlertIcon, CheckIcon, PinIcon } from "./Icons";
 import { SourceLogo } from "./SourceLogo";
 
@@ -75,6 +76,12 @@ export function ItemCard({ item }: { item: AnalyzedItem }) {
 
           {/* Toujours rendue, scorée ou non : jamais un zéro, jamais une moyenne. */}
           <ConfidenceGauge item={item} />
+
+          {/* Rendu seulement hors thread, et alors toujours : un item que le plafond du run a écarté
+              se lisait sinon comme un item dont on avait vérifié qu'il n'appartenait à aucun
+              dossier. Les deux mentions sont sœurs — le vérificateur et le threader disent chacun
+              ce qu'ils ont mesuré, et ce qu'ils n'ont pas pu mesurer. */}
+          <ThreadState item={item} />
         </div>
 
         {/* La marque ferme la rangée : la source se reconnaît d'un coup d'œil le long de la liste,

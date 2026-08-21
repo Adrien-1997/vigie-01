@@ -84,10 +84,12 @@ def mark_analyzed_as_seen(items: list[RawItem]) -> None:
 def record_analyzed(items: list[AnalyzedItem]) -> None:
     """Écrit les items analysés du run courant dans l'historique (recoupement §10 V2 + digest).
 
-    Appelé en fin de nœud verify, une fois `confidence_score`/`corroborated` renseignés : l'historique
-    doit porter l'item tel qu'il sera affiché, pas sa version pré-vérification. L'invariant « la
-    recherche de recoupement ne voit jamais le run courant » est tenu par `exclude_links` côté
-    verifier, pas par l'ordre d'écriture.
+    Appelé en fin de nœud verify, une fois `confidence_score`/`corroborated` renseignés, puis en fin
+    de nœud thread, une fois `thread_id`/`has_thread_candidate`/`thread_checked` posés : l'historique
+    doit porter l'item tel qu'il sera affiché, pas sa version pré-vérification — c'est lui, pas
+    l'état du graphe, que `load_digest` sert au front. L'invariant « la recherche de recoupement ne
+    voit jamais le run courant » est tenu par `exclude_links` côté verifier, pas par l'ordre
+    d'écriture.
 
     `first_seen` est conservé lors d'une réécriture : un item ré-analysé ne doit pas rajeunir, sinon
     il ne sortirait jamais de la fenêtre de rétention. `thread_id` est préservé de la même façon,

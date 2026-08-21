@@ -856,6 +856,11 @@ button {
   border-radius: var(--radius);
   padding: 15px 18px 13px 21px;
   overflow: hidden;
+  /* Le repli de la rangée d'en-tête (plus bas) se décide sur la largeur de la fiche, pas sur celle
+     de la fenêtre : la fiche partage la page avec le rail de filtres, elle est donc bien plus
+     étroite que la fenêtre, et un seuil en @media la laissait déborder sur un écran moyen — la
+     marque tombait seule sur une deuxième rangée, alignée à gauche. */
+  container-type: inline-size;
 }
 
 /* Rangée d'en-tête : catégorie, puis mentions et marque poussées à droite. */
@@ -906,8 +911,10 @@ button {
 }
 
 /* En dessous, les mentions prennent leur propre rangée plutôt que de comprimer leurs libellés,
-   et la marque reste sur la ligne de la catégorie — qui dit de quoi parle la carte. */
-@media (max-width: 760px) {
+   et la marque reste sur la ligne de la catégorie — qui dit de quoi parle la carte. Mesuré sur la
+   fiche elle-même (cf. `container-type` sur .card) : quatre mentions tiennent sur un écran large et
+   ne tiennent plus dès que le rail réduit la colonne. */
+@container (max-width: 760px) {
   .card-flags {
     order: 2;
     flex-basis: 100%;

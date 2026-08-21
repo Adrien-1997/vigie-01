@@ -46,6 +46,13 @@ export interface AnalyzedItem {
    *  Optionnel : les digests produits avant son introduction ne le portent pas. `null`/absent = pas
    *  encore rattaché à un autre item, pas une valeur à combler. */
   thread_id?: string | null;
+  /** Ce que le nœud thread a fait de cet item, quand `thread_id` est nul (backend/state.py).
+   *  `has_thread_candidate` : l'historique portait-il un candidat au-dessus de THREAD_GATE_MIN_SCORE ;
+   *  `thread_checked` : le modèle a-t-il conclu. Il en faut deux là où le vérificateur se contente
+   *  d'`has_antecedent_candidate`, une escalade du threader pouvant légitimement ne rien rattacher
+   *  (cf. lib/threading.ts). Absents des digests écrits avant le 2026-08-21. */
+  has_thread_candidate?: boolean | null;
+  thread_checked?: boolean | null;
   /** Horodatage d'entrée dans l'historique — pas la date de publication de l'article, souvent
    *  absente des flux. C'est la seule date toujours présente, donc celle qui ordonne le digest. */
   first_seen?: string;

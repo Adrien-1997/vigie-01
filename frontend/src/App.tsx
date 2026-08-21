@@ -10,6 +10,7 @@ import {
   type SortKey,
 } from "./lib/filters";
 import { buildThread, groupThreads } from "./lib/threads";
+import { unthreadedReason } from "./lib/threading";
 import { FilterRail } from "./components/FilterRail";
 import { CommandBar, FilterChips, type View } from "./components/CommandBar";
 import { KpiStrip } from "./components/KpiStrip";
@@ -52,6 +53,20 @@ function relativeStamp(iso: string): string {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `il y a ${hours} h`;
   return then.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" });
+}
+
+/** Ce que cette liste de threads ne dit pas. Le nombre de threads affichés se lit spontanément comme
+ *  le nombre de dossiers que le digest contient ; il ne l'est plus dès que le plafond du run a coupé,
+ *  et l'écart n'est visible nulle part ailleurs qu'ici et sur les fiches concernées. */
+function UnexaminedNote({ count }: { count: number }) {
+  return (
+    <p className="note">
+      {count} item{count > 1 ? "s" : ""} de ce digest avai{count > 1 ? "ent" : "t"} un dossier
+      candidat dans l'historique mais n'{count > 1 ? "ont" : "a"} jamais été soumis au rapprochement :
+      le plafond d'escalade du run ou le budget quotidien a coupé avant. Leur absence de thread n'est
+      pas une mesure — chaque fiche concernée le signale.
+    </p>
+  );
 }
 
 export default function App() {
@@ -151,6 +166,15 @@ export default function App() {
   const threads = useMemo(
     () => groupThreads(visible).filter((group) => group.length > 1).map(buildThread),
     [visible],
+  );
+  // Items dont le portillon du threader avait retenu un dossier candidat, mais que le plafond du run
+  // ou le budget quotidien n'a jamais soumis au modèle. Sans ce compte, une liste de threads courte
+  // se lit comme « il n'y avait pas plus de dossiers » alors qu'elle dit « on n'a pas cherché plus
+  // loin » — au run du 2026-08-21, 17 items éligibles pour 3 rattachés. Compté sur le digest entier
+  // et non sur la sélection filtrée, comme les tuiles de mesure (cf. components/KpiStrip.tsx).
+  const unexamined = useMemo(
+    () => items.filter((i) => !i.thread_id && unthreadedReason(i) === "capped").length,
+    [items],
   );
 
   return (
@@ -286,6 +310,7 @@ export default function App() {
                     pas une anomalie. Les threads apparaîtront ici à mesure que l'historique
                     s'accumule.
                   </p>
+                  {unexamined > 0 && <UnexaminedNote count={unexamined} />}
                   {hasActiveFilters(filters) && (
                     <button className="btn btn-ghost" onClick={() => setFilters(EMPTY_FILTERS)}>
                       Réinitialiser les filtres
@@ -301,6 +326,7 @@ export default function App() {
                       n'est plus affiché ici.
                     </p>
                   )}
+                  {unexamined > 0 && <UnexaminedNote count={unexamined} />}
                   {threads.map((thread) => (
                     <ThreadDetail key={thread.id} thread={thread} />
                   ))}

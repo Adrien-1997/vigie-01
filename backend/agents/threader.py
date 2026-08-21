@@ -121,6 +121,15 @@ def thread_events(state: VeilleState) -> VeilleState:
     compte brut sans rapport d'échelle, et le filtre retombe sur "au moins un candidat" pour ne pas
     rendre inéligible le cas canonique du thread (deux sources du même run, historique encore vide).
 
+    Le résultat du portillon est écrit sur chaque item (has_thread_candidate), escaladé ou non, et
+    doublé de thread_checked, qui dit si le modèle a bien conclu. Il en faut deux là où le
+    vérificateur se contente de has_antecedent_candidate, parce qu'une escalade du threader ne
+    produit pas toujours un rattachement : le modèle peut regarder et conclure qu'aucun candidat ne
+    couvre le même dossier, ce qui est une mesure, pas un silence. Sans ces deux champs, un
+    thread_id nul confondait trois états — mesuré au run du 2026-08-21, où 17 items franchissaient
+    le portillon pour 3 rattachés, les 14 autres étant à l'écran indiscernables d'items sans
+    dossier.
+
     La fenêtre d'historique est chargée une fois (verify() a déjà écrit les items du run courant
     avant que ce nœud s'exécute, donc ils y figurent déjà) et tenue à jour en mémoire au fil de la
     boucle : un item traité tôt dans le run peut ainsi être retrouvé, avec son thread_id fraîchement
@@ -134,6 +143,8 @@ def thread_events(state: VeilleState) -> VeilleState:
     escalated = 0
     budget_exhausted = False
     touched_links: set[str] = set()
+    gate: dict[str, bool] = {}
+    checked: dict[str, bool] = {}
 
     for item in state["analyzed_items"]:
         probe = search_thread_candidates(
@@ -142,6 +153,8 @@ def thread_events(state: VeilleState) -> VeilleState:
             limit=1,
             min_score=THREAD_GATE_MIN_SCORE,
         )
+        gate[item["link"]] = bool(probe)
+        checked[item["link"]] = False
         escalatable = not budget_exhausted and bool(probe) and escalated < MAX_THREAD_ESCALATIONS_PER_RUN
         if not escalatable:
             continue
@@ -150,8 +163,11 @@ def thread_events(state: VeilleState) -> VeilleState:
         try:
             winner_link = _thread_item(item)
         except BudgetExceeded:
+            # Escaladé mais jamais conclu : `checked` reste à False, sinon l'affichage lirait cet
+            # item comme examiné et sans dossier, alors que rien n'a été jugé.
             budget_exhausted = True
             continue
+        checked[item["link"]] = True
 
         if not winner_link or winner_link == item["link"] or winner_link not in window:
             # Lien absent de la fenêtre interrogée, ou item qui se référence lui-même : hallucination
@@ -176,9 +192,21 @@ def thread_events(state: VeilleState) -> VeilleState:
     # enregistrements de window portent des champs de persistance (date, first_seen) qui n'ont pas
     # leur place dans l'état du graphe, seulement thread_id doit remonter.
     updated_items = [
-        {**item, "thread_id": window.get(item["link"], item).get("thread_id")} for item in state["analyzed_items"]
+        {
+            **item,
+            "thread_id": window.get(item["link"], item).get("thread_id"),
+            "has_thread_candidate": gate[item["link"]],
+            "thread_checked": checked[item["link"]],
+        }
+        for item in state["analyzed_items"]
     ]
-    if touched_links:
-        record_analyzed([window[link] for link in touched_links])
+    # Tout le lot est réécrit, plus seulement les liens touchés : les deux champs d'état ci-dessus
+    # portent sur les items non rattachés autant que sur les autres, et le digest se lit depuis
+    # l'historique (store.load_digest), jamais depuis l'état du graphe. Une écriture de plus par item
+    # et par run, du même ordre que les deux passes du vérificateur — c'est le prix de la
+    # restitution. Les liens touchés hors du lot (un antécédent historique qui reçoit le thread_id
+    # partagé) s'y ajoutent : eux ne sont pas dans `updated_items`.
+    batch_links = {item["link"] for item in state["analyzed_items"]}
+    record_analyzed(updated_items + [window[link] for link in touched_links if link not in batch_links])
 
     return {"analyzed_items": updated_items, "truncated": state.get("truncated", False) or budget_exhausted}

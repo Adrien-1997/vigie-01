@@ -255,3 +255,96 @@ def test_thread_ignores_a_hallucinated_link_not_in_the_search_window(monkeypatch
     result = threader.thread_events({"raw_items": [], "analyzed_items": [item]})
 
     assert result["analyzed_items"][0]["thread_id"] is None
+
+
+def test_thread_records_the_gate_result_on_every_item(monkeypatch):
+    """Le portillon est une mesure, et il est écrit même quand il refuse : sans has_thread_candidate,
+    un thread_id nul ne dit pas si l'historique ne portait aucun dossier proche ou si le run a coupé
+    avant d'y regarder (cf. la docstring de thread_events)."""
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion())
+
+    item = _analyzed_item("a", title_fr="Sujet isolé", summary="Rien à rapprocher dans l'historique")
+    result = threader.thread_events({"raw_items": [], "analyzed_items": [item]})
+
+    assert result["analyzed_items"][0]["has_thread_candidate"] is False
+    assert result["analyzed_items"][0]["thread_checked"] is False
+
+
+def test_thread_marks_an_item_the_model_examined_without_finding_a_match(monkeypatch):
+    """Escaladé, conclu « aucun dossier » : c'est le silence le plus fort des trois, et il ne doit
+    pas se lire comme le plafond du run."""
+    store.record_analyzed(
+        [_analyzed_item("c", title_fr="Rafale vendu à la Grèce", summary="Dassault livre des Rafale")]
+    )
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion(same_story_as=None))
+
+    item = _analyzed_item("a", title_fr="Rafale vendu à la Grèce", summary="Contrat Dassault confirmé")
+    result = threader.thread_events({"raw_items": [], "analyzed_items": [item]})
+
+    assert result["analyzed_items"][0]["thread_id"] is None
+    assert result["analyzed_items"][0]["has_thread_candidate"] is True
+    assert result["analyzed_items"][0]["thread_checked"] is True
+
+
+def test_thread_separates_a_capped_item_from_one_without_candidates(monkeypatch):
+    """Le défaut mesuré au run du 2026-08-21 : 17 items éligibles, 3 rattachés, et rien à l'écran
+    pour distinguer les 14 autres d'items sans dossier."""
+    monkeypatch.setattr(threader, "MAX_THREAD_ESCALATIONS_PER_RUN", 1)
+    store.record_analyzed(
+        [_analyzed_item("c", title_fr="Rafale vendu à la Grèce", summary="Dassault livre des Rafale")]
+    )
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion(same_story_as="c"))
+
+    items = [
+        _analyzed_item("a", title_fr="Rafale vendu à la Grèce", summary="Contrat Dassault confirmé"),
+        _analyzed_item("b", title_fr="Rafale vendu à la Grèce", summary="Livraison Dassault annoncée"),
+    ]
+    result = threader.thread_events({"raw_items": [], "analyzed_items": items})
+
+    capped = {i["link"]: i for i in result["analyzed_items"]}["b"]
+    assert capped["thread_id"] is None
+    # Un candidat existait — l'absence de rattachement est une absence de mesure, pas une mesure.
+    assert capped["has_thread_candidate"] is True
+    assert capped["thread_checked"] is False
+
+
+def test_thread_leaves_an_item_unchecked_when_the_budget_dies_before_its_conclusion(monkeypatch):
+    """L'item sur lequel BudgetExceeded tombe a été escaladé mais jamais jugé : le compter comme
+    examiné le ferait passer pour un item que le modèle a regardé et écarté."""
+    store.record_analyzed(
+        [_analyzed_item("c", title_fr="Rafale vendu à la Grèce", summary="Dassault livre des Rafale")]
+    )
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion(same_story_as="c"))
+
+    calls = [0]
+
+    def _budget():
+        calls[0] += 1
+        if calls[0] > 2:
+            raise threader.BudgetExceeded("plafond atteint")
+
+    monkeypatch.setattr(threader, "check_and_increment_llm_call", _budget)
+
+    items = [
+        _analyzed_item("a", title_fr="Rafale vendu à la Grèce", summary="Contrat Dassault confirmé"),
+        _analyzed_item("b", title_fr="Rafale vendu à la Grèce", summary="Livraison Dassault annoncée"),
+    ]
+    result = threader.thread_events({"raw_items": [], "analyzed_items": items})
+
+    by_link = {i["link"]: i for i in result["analyzed_items"]}
+    assert by_link["a"]["thread_checked"] is True
+    assert by_link["b"]["has_thread_candidate"] is True
+    assert by_link["b"]["thread_checked"] is False
+
+
+def test_thread_persists_the_silence_state_of_items_it_did_not_attach(monkeypatch):
+    """Le digest se lit depuis l'historique, jamais depuis l'état du graphe (store.load_digest) : les
+    deux champs doivent donc être écrits pour tout le lot, pas seulement pour les liens touchés."""
+    _patch_llm(monkeypatch, conclusion=_FakeConclusion())
+
+    item = _analyzed_item("a", title_fr="Sujet isolé", summary="Rien à rapprocher dans l'historique")
+    threader.thread_events({"raw_items": [], "analyzed_items": [item]})
+
+    stored = {r["link"]: r for r in store.load_digest(1)}["a"]
+    assert stored["has_thread_candidate"] is False
+    assert stored["thread_checked"] is False
