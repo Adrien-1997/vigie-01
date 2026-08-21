@@ -87,9 +87,9 @@ Chiffres datés, et non des cibles. Définitions et réserves méthodologiques e
 | Précision de classification (2026-08-16, n=68 annotés) | 51/68 = **75 %** | ≥ 85 % |
 | → décision de périmètre seule (dans / hors) | précision 88 %, rappel 83 % (F1 0,86) | — |
 | → catégorie fine, sur les items jugés dans le périmètre | 23/36 = 64 % | — |
-| Couverture des sources (2026-08-20, fenêtre 96 h) | 16/18 flux actifs | — |
-| Items écartés par le plafond par source (même fenêtre) | 274 sur 8 flux | — |
-| Historique accumulé (2026-08-20) | 261 items sur 7 jours | — |
+| Couverture des sources (2026-08-21, fenêtre 96 h) | 15/18 flux actifs | — |
+| Items écartés par le plafond par source (même fenêtre) | 268 sur 8 flux | — |
+| Historique accumulé (2026-08-21) | 297 items, fenêtre glissante de 7 jours | — |
 
 La précision globale est **sous la cible**, et sa décomposition est le résultat utile : le filtrage
 du bruit atteint la cible, la qualification fine échoue une fois sur trois, et une seule catégorie
@@ -99,9 +99,10 @@ l'ingestion, pas du prompt.
 
 Deux mesures antérieures (n=30 puis n=88) et les correctifs de définition qu'elles ont déclenchés
 sont détaillés en [§7](docs/cadrage.md). Ce qui n'est **pas** mesuré est dit comme tel : le
-vérificateur n'a produit que 20 scores (2 avec antécédent) sur la semaine mesurée — l'extension
-aux cinq catégories, câblée le 2026-08-20, n'a pas encore tourné en réel — et le
-regroupement 11 threads. Le critère d'acceptation des threads est **atteint** : sur l'échantillon de
+vérificateur, dont l'extension aux cinq catégories a tourné en réel pour la première fois le
+2026-08-21, a produit 15 scores sur 36 items ce jour-là (5 avec antécédent), contre 20 scores
+sur 261 items — 2 avec antécédent — sous l'ancienne règle par catégorie. Le regroupement compte
+11 threads. Le critère d'acceptation des threads est **atteint** : sur l'échantillon de
 65 paires gelé et annoté le 2026-08-20, les 13 paires intra-thread sont toutes jugées même dossier
 (précision 100 %) — une précision, pas un rappel, un dossier que le modèle n'a pas su rapprocher ne
 produisant aucune paire à annoter.
@@ -233,7 +234,7 @@ Raison d'être de la campagne, fenêtre de rattrapage et KPI de couverture : [`d
 - [x] V1 — collecte + dédoublonnage + classification + résumé tracé + API + frontend
 - [x] V1 — sources organisées par pays (top 10 exportateurs SIPRI + Iran/Corée du Nord), validées en direct
 - [ ] V1 — déploiement Cloud Run + Cloud Scheduler
-- [~] V2 — agent vérificateur : recoupement et score de confiance livrés ; périmètre étendu aux cinq catégories le 2026-08-20, l'escalade étant conditionnée à un antécédent candidat mesuré plutôt qu'à la catégorie — reste à exécuter sur un run réel, et `fetch_full_article` à venir
+- [~] V2 — agent vérificateur : recoupement et score de confiance livrés ; périmètre étendu aux cinq catégories le 2026-08-20, l'escalade étant conditionnée à un antécédent candidat mesuré plutôt qu'à la catégorie, et exécuté en réel le 2026-08-21 (15 escalades sur 36 items, 5 avec antécédent) — `fetch_full_article` à venir
 - [~] V2 — carte de couverture interactive livrée (filtrage par pays depuis le champ `location`) ; sectorisation par thème à venir
 - [~] V3 — raisonnement longitudinal sur l'historique : le pipeline traitait chaque item isolément, alors qu'une part du signal se situe entre les items (un dossier qui évolue, la fréquence d'un pays qui monte). Cinq tranches séquencées, cadrées en [§10](docs/cadrage.md) :
   - [x] threads d'événements — regrouper les items d'un même dossier, restitués en chronologie à l'échelle réelle du temps avec le croisement média/lieu de l'événement. Critère d'acceptation **atteint** (2026-08-20) : précision 100 % sur les 13 paires intra-thread annotées
