@@ -99,12 +99,17 @@ aveugle, la composition des sources a changé, et le prompt a reçu les précisi
 
 La décomposition reste le résultat utile : le filtrage du bruit atteint la cible, la qualification
 fine ne la tient pas, et une seule frontière porte l'essentiel de l'écart — celle entre
-`contrat_armement` et `programme_industriel`, la seule du périmètre qu'aucune règle n'énonce
-encore. Trois des dix désaccords y tombent, avec un motif constant : le modèle classe d'après
-l'acteur visible (une marine cliente) plutôt que d'après l'objet de l'article (un jalon de
-construction). La frontière `diplomatie_defense` / `mouvement_militaire`, spécifiée après une
-mesure antérieure où elle dominait, est aujourd'hui la mieux tenue de l'échantillon — c'est ce
-précédent qui rend l'intervention prévisible.
+`contrat_armement` et `programme_industriel`, avec un motif constant sur deux mesures : le modèle
+classe d'après l'acteur visible (une marine cliente) plutôt que d'après l'objet de l'article (un
+jalon de construction ou de livraison). L'analyse a corrigé son propre diagnostic en chemin : le
+cadrage n'énonçait rien sur cette frontière, mais le prompt de classification portait une règle non
+documentée depuis cinq jours — sur le cas le plus net, le modèle appliquait donc fidèlement une
+règle écrite que l'annotation contredit. Désaccord de spécification, pas lacune de spécification :
+la règle a été **changée** et reportée dans le cadrage, une livraison relevant désormais du
+programme et `contrat_armement` se resserrant sur l'acte commercial. Un retest de non-régression
+est dû avant de la considérer acquise. Le précédent qui rend l'opération prévisible : la frontière
+`diplomatie_defense` / `mouvement_militaire`, spécifiée après une mesure antérieure où elle
+dominait, est aujourd'hui la mieux tenue de l'échantillon.
 
 Deux mesures antérieures (n=30 puis n=88) et les correctifs de définition qu'elles ont déclenchés
 sont détaillés en [§7](docs/cadrage.md). Ce qui n'est **pas** mesuré est dit comme tel : le

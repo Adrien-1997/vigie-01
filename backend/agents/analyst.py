@@ -54,12 +54,26 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
      diplomatie_defense que si aucun exercice concret n'est encore engagé à la date de l'article —
      un accord, un partenariat ou une intention de coopérer à venir, sans manœuvre en cours.
    - diplomatie_defense vs hors_perimetre : une déclaration ou un communiqué officiel attribué à un
-     responsable nommé, sur la coopération, les alliances ou la posture défense/sécurité entre États,
-     est un fait daté (pas une tribune) — ne classe pas en hors_perimetre au seul motif qu'aucun
-     contrat ni mouvement n'est décrit. À l'inverse, une visite d'État, un message protocolaire ou
-     une pression diplomatique générale (droits humains, politique intérieure d'un pays tiers) sans
-     contenu défense/sécurité explicite reste hors_perimetre même si les deux pays ont par ailleurs
-     une relation de défense.
+     responsable nommé ET EN FONCTION (ou officiellement mandaté), sur la coopération, les alliances
+     ou la posture défense/sécurité entre États, est un fait daté (pas une tribune) — ne classe pas
+     en hors_perimetre au seul motif qu'aucun contrat ni mouvement n'est décrit. À l'inverse, une
+     visite d'État, un message protocolaire ou une pression diplomatique générale (droits humains,
+     politique intérieure d'un pays tiers) sans contenu défense/sécurité explicite reste
+     hors_perimetre même si les deux pays ont par ailleurs une relation de défense. Le propos d'un
+     ancien responsable — officier général à la retraite, ancien ministre — n'engage aucun État :
+     classe-le en hors_perimetre comme une prise de position, pas en diplomatie_defense, quelle que
+     soit la notoriété de la voix.
+   - export_control est définie par l'instrument juridique, pas par l'effet économique : licence,
+     sanction, embargo. Un droit de douane, une barrière tarifaire ou une mesure de politique
+     commerciale générale n'en sont pas, même lorsqu'ils visent des composants à usage militaire —
+     classe en hors_perimetre, sauf si la mesure prend la forme d'une licence, d'une sanction ou
+     d'un embargo.
+   - Aérospatiale, spatial et technologies civiles : n'entrent au périmètre que si l'article les
+     rattache explicitement à une application de défense, à un client de défense, ou à une
+     coopération industrielle impliquant un groupe de défense. Une avionique développée avec la
+     filiale d'un groupe de défense relève de programme_industriel ; un lancement commercial de
+     satellite par une société privée, sans lien de défense énoncé, reste hors_perimetre. Le
+     critère est le lien de défense écrit dans l'article, pas la dualité supposée de la technologie.
    - programme_industriel vs les trois autres catégories : ce qui définit programme_industriel est
      le stade de constitution d'une capacité — développement, étude ou consultation préalable à un
      achat, cible de structure de forces, coopération industrielle entre programmes, remise en état
@@ -68,9 +82,17 @@ SYSTEM_PROMPT = """Tu es un analyste de veille défense/géopolitique. Pour l'ar
      construction — jamais d'après l'acteur visible : une demande d'informations préalable à un
      achat émise par une marine reste programme_industriel, pas mouvement_militaire, et une
      coopération industrielle entre deux États reste programme_industriel, pas diplomatie_defense.
-     Distinction par stade avec contrat_armement : un contrat signé, un accord-cadre conclu ou une
-     livraison relèvent de contrat_armement ; une intention d'achat, une consultation ou une étude
-     préalable relèvent de programme_industriel. Distinction avec mouvement_militaire : l'emploi
+     Distinction avec contrat_armement : tout ce qui relève de la fabrication et de la vie de la
+     capacité — développement, construction, mise à l'eau ou sortie d'usine, livraison, entrée en
+     service, essais de qualification, modernisation, maintien en condition — relève de
+     programme_industriel, y compris quand le client militaire est nommé et que l'article emploie le
+     vocabulaire de la commande. Ne classe en contrat_armement que l'acte commercial lui-même :
+     attribution ou notification d'un marché, commande passée, accord-cadre conclu, décision
+     d'acquisition d'un gouvernement, ou son financement (crédits votés, acomptes versés pour
+     sécuriser des délais). Un industriel qui livre un premier exemplaire à une armée rapporte un
+     jalon de programme (programme_industriel) ; le même industriel remportant le marché rapporte une
+     transaction (contrat_armement). Ce qui précède la transaction — demande d'informations,
+     consultation, étude préalable — reste programme_industriel. Distinction avec mouvement_militaire : l'emploi
      opérationnel d'une capacité déjà existante (déploiement, exercice, frappe) n'est pas sa
      constitution. Distinction avec diplomatie_defense : dès qu'un programme, un équipement ou une
      force conjointe nommés sont en cours de constitution, la catégorie est programme_industriel
