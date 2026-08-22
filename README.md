@@ -84,18 +84,27 @@ Chiffres datés, et non des cibles. Définitions et réserves méthodologiques e
 
 | Mesure | Résultat | Cible |
 |---|---|---|
-| Précision de classification (2026-08-16, n=68 annotés) | 51/68 = **75 %** | ≥ 85 % |
-| → décision de périmètre seule (dans / hors) | précision 88 %, rappel 83 % (F1 0,86) | — |
-| → catégorie fine, sur les items jugés dans le périmètre | 23/36 = 64 % | — |
-| Couverture des sources (2026-08-21, fenêtre 96 h) | 15/18 flux actifs | — |
-| Items écartés par le plafond par source (même fenêtre) | 268 sur 8 flux | — |
-| Historique accumulé (2026-08-21) | 297 items, fenêtre glissante de 7 jours | — |
+| Précision de classification (2026-08-22, n=48, annotation en aveugle) | 38/48 = **79 %**, IC95 [66 % ; 88 %] | ≥ 85 % |
+| → décision de périmètre seule (dans / hors) | 42/48 = 87,5 % — précision 89 %, rappel 89 % (F1 0,89) | — |
+| → catégorie la plus faible | `programme_industriel` — F1 0,67, 6 des 10 désaccords | — |
+| Couverture des sources (2026-08-22, fenêtre 96 h) | 16/18 flux actifs | — |
+| Items écartés par le plafond par source (même fenêtre) | 253 sur 7 flux | — |
+| Historique accumulé (2026-08-22) | 295 items, fenêtre glissante de 7 jours | — |
+| Coût d'un run complet (2026-08-22) | 195 appels LLM sur un plafond de 200 — analyse 72, vérification 50, regroupement 73 | — |
 
-La précision globale est **sous la cible**, et sa décomposition est le résultat utile : le filtrage
-du bruit atteint la cible, la qualification fine échoue une fois sur trois, et une seule catégorie
-porte l'essentiel de l'écart (`programme_industriel`, rappel 5/11). Deux des six manques sont des
-cas de troncature de teaser RSS, déjà corrigés au rejeu sur texte intégral — ils relèvent de
-l'ingestion, pas du prompt.
+À cette taille d'échantillon, **la cible de 85 % est à l'intérieur de l'intervalle de confiance** :
+la mesure ne conclut donc ni que le produit l'atteint, ni qu'il est en dessous. La mesure précédente
+(75 %, n=68) l'excluait, mais les deux ne sont pas comparables — celle-ci est la première annotée en
+aveugle, la composition des sources a changé, et le prompt a reçu les précisions de frontière §4.
+
+La décomposition reste le résultat utile : le filtrage du bruit atteint la cible, la qualification
+fine ne la tient pas, et une seule frontière porte l'essentiel de l'écart — celle entre
+`contrat_armement` et `programme_industriel`, la seule du périmètre qu'aucune règle n'énonce
+encore. Trois des dix désaccords y tombent, avec un motif constant : le modèle classe d'après
+l'acteur visible (une marine cliente) plutôt que d'après l'objet de l'article (un jalon de
+construction). La frontière `diplomatie_defense` / `mouvement_militaire`, spécifiée après une
+mesure antérieure où elle dominait, est aujourd'hui la mieux tenue de l'échantillon — c'est ce
+précédent qui rend l'intervention prévisible.
 
 Deux mesures antérieures (n=30 puis n=88) et les correctifs de définition qu'elles ont déclenchés
 sont détaillés en [§7](docs/cadrage.md). Ce qui n'est **pas** mesuré est dit comme tel : le
