@@ -106,8 +106,11 @@ cadrage n'énonçait rien sur cette frontière, mais le prompt de classification
 documentée depuis cinq jours — sur le cas le plus net, le modèle appliquait donc fidèlement une
 règle écrite que l'annotation contredit. Désaccord de spécification, pas lacune de spécification :
 la règle a été **changée** et reportée dans le cadrage, une livraison relevant désormais du
-programme et `contrat_armement` se resserrant sur l'acte commercial. Un retest de non-régression
-est dû avant de la considérer acquise. Le précédent qui rend l'opération prévisible : la frontière
+programme et `contrat_armement` se resserrant sur l'acte commercial. Sondée le jour même sur les
+deux appels restants, elle n'est **efficace qu'à moitié** : le cas de la livraison bascule comme
+voulu, celui du financement ne bouge pas alors que la règle le nomme mot pour mot. Une règle peut
+être écrite, juste, et rester sans effet — un retest complet avec contrôles de non-régression est
+dû avant de la considérer acquise. Le précédent qui rend l'opération prévisible : la frontière
 `diplomatie_defense` / `mouvement_militaire`, spécifiée après une mesure antérieure où elle
 dominait, est aujourd'hui la mieux tenue de l'échantillon.
 
