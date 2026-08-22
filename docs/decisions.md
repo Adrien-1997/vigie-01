@@ -107,13 +107,14 @@ paires intra-thread, pas ce score, qui mesure la précision du threading (100 % 
 ## Garde-fous, implémentés dès V1
 
 - `backend/guardrails.py` — plafond d'appels LLM par jour, testé dans les deux sens (déclenchement réel vérifié, run normal non affecté). Couvre aussi les appels du vérificateur, sans compteur séparé. Atteint, il **tronque** le run au lieu de l'annuler : les items déjà analysés sont enregistrés et servis, ceux qui n'ont pas été soumis au modèle restent collectables au cycle suivant, et l'API répond un succès partiel explicite (`truncated`) plutôt qu'une erreur — sans quoi le garde-fou de coût détruirait le travail qu'il vient de faire payer
-- `backend/guardrails.py` — imputation de chaque appel au nœud qui l'obtient (`calls_by_node()`), ajoutée le 2026-08-21. Ce n'est pas un garde-fou mais ce qui rend le précédent arbitrable : le plafond étant un compteur global unique, étendre un nœud ne consomme pas des appels « en plus », cela les retire au nœud suivant — constaté le jour même, où le vérificateur étendu a fait tomber le plafond sur le regroupement, dernier de la chaîne. La mesure est tenue en mémoire et hors de la couche de persistance qui porte le plafond, à dessein : elle n'a pas besoin de l'atomicité qu'exige une réservation, et l'y porter imposerait de modifier l'interface de persistance et ses deux implémentations, dont un backend Firestore jamais exécuté contre une base réelle. Un appel refusé n'est imputé à personne — la réservation précède l'appel au modèle, elle n'a donc rien coûté. **Aucun chiffre réel encore** : le budget du jour était clos quand le compteur a été posé
+- `backend/guardrails.py` — imputation de chaque appel au nœud qui l'obtient (`calls_by_node()`), ajoutée le 2026-08-21. Ce n'est pas un garde-fou mais ce qui rend le précédent arbitrable : le plafond étant un compteur global unique, étendre un nœud ne consomme pas des appels « en plus », cela les retire au nœud suivant — constaté le jour même, où le vérificateur étendu a fait tomber le plafond sur le regroupement, dernier de la chaîne. La mesure est tenue en mémoire et hors de la couche de persistance qui porte le plafond, à dessein : elle n'a pas besoin de l'atomicité qu'exige une réservation, et l'y porter imposerait de modifier l'interface de persistance et ses deux implémentations, dont un backend Firestore jamais exécuté contre une base réelle. Un appel refusé n'est imputé à personne — la réservation précède l'appel au modèle, elle n'a donc rien coûté. **Première répartition réelle le 2026-08-22** : analyse 72, vérification 50, regroupement 73 sur un lot de 31 articles retenus, soit 195 des 200 appels du jour (cf. plus bas)
 - `backend/graph.py` — plafond de steps par run (`MAX_STEPS_PER_RUN`), appliqué via le `recursion_limit` LangGraph — protection contre une boucle d'agent incontrôlée (cadrage §8), testée dans les deux sens
 - `backend/agents/verifier.py` — double plafond sur l'escalade agentique : nombre d'items escaladés par run et nombre d'itérations d'outil par item. Vérifié en code et non via `MAX_STEPS_PER_RUN`, qui compte les nœuds du graphe et ne borne pas une boucle interne à un nœud
 - `backend/agents/threader.py` — même double plafond (`MAX_THREAD_ESCALATIONS_PER_RUN`, `MAX_THREAD_STEPS_PER_ITEM`), sans compteur de budget distinct : le regroupement passe par le garde-fou quotidien commun. Le plafond par run y est plus haut que celui du vérificateur, l'éligibilité étant plus large (cinq catégories contre deux), et il est précédé d'un portillon sans coût LLM qui n'escalade que les items dont le meilleur candidat atteint `THREAD_GATE_MIN_SCORE` (posé le 2026-08-20, cf. plus bas)
 - `backend/agents/collector.py` — fenêtre de fraîcheur (`COLLECTION_LOOKBACK_HOURS`) : plusieurs flux institutionnels exposent des mois d'historique sans pagination par date ; sans ce filtre, un premier run soumettrait tout l'arriéré au budget quotidien d'un seul coup
 - `backend/agents/collector.py` — plafond par source (`MAX_ITEMS_PER_SOURCE_PER_RUN`, override possible par `Source.max_per_run`) : ajouté le 2026-08-17, mesuré en conditions réelles — sans lui, une agence de presse à cadence élevée (TASS, ~45 items/jour dans la fenêtre alors en vigueur) consommait le budget quotidien à elle seule, au détriment des flux spécialisés à faible volume mais fort signal. Complète la fenêtre de fraîcheur ci-dessus plutôt que de la remplacer : elle borne l'ancienneté, celui-ci borne le volume
 - `backend/agents/analyst.py` — traçabilité systématique : un résumé sans citation vérifiable dans le texte source est rejeté automatiquement, pas seulement signalé
+- `backend/agents/analyst.py` — ventilation du sort réservé à chaque article soumis, par source (`submissions_by_source()`), ajoutée le 2026-08-22. Même statut et même portée que l'imputation par nœud ci-dessus : une mesure d'exploitation, en mémoire, remise à zéro par run. Elle existe parce que ce nœud paie un appel par article soumis **avant** de savoir s'il sera retenu, et que les articles écartés ne laissent aucune trace ailleurs — l'historique analysé ne porte que les retenus, le journal de lancement ne compte que ce que chaque flux a offert avant le plafond par source. La clé est le couple (source, sort) et non la source seule : « combien de perdu » sans « pourquoi » ne distingue pas un flux hors sujet d'un flux dont les extraits sont trop courts pour porter une citation vérifiable, deux problèmes qui n'appellent pas le même remède — l'un se règle à la composition des sources, l'autre par la récupération du texte intégral
 
 Les deux premiers garde-fous étaient initialement déclarés en config sans être vérifiés en code — écart trouvé par auto-audit et corrigé, plutôt que découvert en revue externe. C'est le type de vérification qu'un audit technique répété périodiquement pendant le développement doit attraper.
 
@@ -126,6 +127,25 @@ ailleurs : rien dans l'historique analysé ne distingue « la source n'a rien pu
 écarté sa queue de flux ». La comparaison qu'il permet est le vrai apport — TASS écarte 88 items
 tout en produisant 69 des 199 items analysés, là où Yonhap en écarte 97 pour 10 : le plafond rogne
 un flux généraliste à faible rendement dans un cas, le flux le plus productif dans l'autre.
+
+**Ce que coûte un run, mesuré le 2026-08-22.** Le premier lot complet d'une journée consomme la
+quasi-totalité du plafond : 195 appels sur 200, répartis en analyse 72, vérification 50,
+regroupement 73. Deux choses s'en déduisent qui ne se lisaient pas dans le total. D'abord, une
+escalade agentique coûte environ 3,7 appels et non un — 3,85 par escalade de vérification, 3,65 par
+escalade de regroupement —, la boucle payant un appel par itération d'outil plus un pour conclure.
+Ensuite, et c'est la conséquence à retenir, les plafonds d'escalade sont sur-souscrits par rapport
+au budget : ils autorisent ensemble 140 appels, ce qui ne laisse que 60 appels à l'analyse, laquelle
+en paie un par article soumis sans discrétion possible et en a consommé 72 ce jour-là. Le run n'a
+tenu que parce que la vérification n'a pas utilisé tous ses créneaux. Un lot plus lourd tronque, et
+c'est le regroupement — dernier de la chaîne — qui absorbe le déficit, comme constaté la veille.
+
+Le partage entre les trois nœuds n'est pas tranché pour autant, et pas par indécision : 41 des 72
+appels d'analyse, soit 21 % du budget quotidien, portent sur des articles écartés après coup, et
+tant que cette part n'est pas attribuée à des flux, arbitrer reviendrait à répartir une enveloppe
+dont on n'a pas mesuré une des trois parts. C'est ce que la ventilation par source instrumentée le
+même jour doit fournir. Une option est en revanche déjà écartée : resserrer le portillon du
+regroupement pour une raison de budget périmerait sans le dire un seuil calibré sur une mesure de
+précision d'appariement.
 
 ## Conduite de la campagne d'accumulation
 
