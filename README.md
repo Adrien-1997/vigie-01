@@ -86,7 +86,7 @@ Chiffres datés, et non des cibles. Définitions et réserves méthodologiques e
 |---|---|---|
 | Précision de classification (2026-08-22, n=48, annotation en aveugle) | 38/48 = **79 %**, IC95 [66 % ; 88 %] | ≥ 85 % |
 | → décision de périmètre seule (dans / hors) | 42/48 = 87,5 % — précision 89 %, rappel 89 % (F1 0,89) | — |
-| → catégorie la plus faible | `programme_industriel` — F1 0,67, 6 des 10 désaccords | — |
+| → catégorie la plus faible | `programme_industriel` — F1 0,67, 7 des 10 désaccords | — |
 | Couverture des sources (2026-08-22, fenêtre 96 h) | 16/18 flux actifs | — |
 | Items écartés par le plafond par source (même fenêtre) | 253 sur 7 flux | — |
 | Historique accumulé (2026-08-22) | 295 items, fenêtre glissante de 7 jours | — |
