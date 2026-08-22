@@ -391,3 +391,54 @@ def test_analyze_keeps_actor_country_independent_of_the_location_verdict(monkeyp
     assert analyzed["location"] == "Strait of Hormuz"
     assert analyzed["location_country"] == ""
     assert analyzed["actor_country"] == "Iran"
+
+
+def test_submission_tally_attributes_each_outcome_to_its_source(monkeypatch):
+    """Le nœud paie un appel par item soumis, retenu ou non. Sans cette ventilation, les appels
+    dépensés sur des items écartés (21 % du budget au run du 2026-08-22) ne sont attribuables à
+    aucun flux : les items écartés ne sont enregistrés nulle part ailleurs."""
+
+    def _classify(item):
+        if item["source"] == "hors_sujet":
+            return _FakeAnalysis("hors_perimetre", "")
+        if item["source"] == "teaser_court":
+            return _FakeAnalysis("contrat_armement", "citation absente du texte")
+        return _FakeAnalysis("contrat_armement", "source text about a contract")
+
+    monkeypatch.setattr(analyst, "classify_item", _classify)
+
+    kept = _raw_item("Actual source text about a contract.")
+    dropped = _raw_item("Un texte sans rapport")
+    unverifiable = _raw_item("Un extrait tronqué")
+    dropped["source"], dropped["link"] = "hors_sujet", "d"
+    unverifiable["source"], unverifiable["link"] = "teaser_court", "u"
+
+    analyst.analyze({"raw_items": [kept, dropped, unverifiable], "analyzed_items": []})
+
+    assert analyst.submissions_by_source() == {
+        "hors_sujet": {"hors_perimetre": 1},
+        "s": {"retenu": 1},
+        "teaser_court": {"citation_non_verifiee": 1},
+    }
+
+
+def test_submission_tally_ignores_the_item_the_budget_refused(monkeypatch):
+    """Pendant du test « collectable » ci-dessus : le plafond est vérifié avant l'appel, donc l'item
+    sur lequel il tombe n'a rien coûté. L'inscrire comme perdu ferait porter à sa source une dépense
+    qui n'a pas eu lieu — la même erreur d'imputation que le tally par nœud évite côté guardrails."""
+    from backend.guardrails import BudgetExceeded
+
+    def _classify(item):
+        if item["link"] != "l":
+            raise BudgetExceeded("plafond atteint")
+        return _FakeAnalysis("contrat_armement", "source text about a contract")
+
+    monkeypatch.setattr(analyst, "classify_item", _classify)
+
+    done = _raw_item("Actual source text about a contract.")
+    unpaid = _raw_item("Autre texte")
+    unpaid["source"], unpaid["link"] = "affamee", "unpaid"
+
+    analyst.analyze({"raw_items": [done, unpaid], "analyzed_items": []})
+
+    assert analyst.submissions_by_source() == {"s": {"retenu": 1}}

@@ -17,12 +17,15 @@ def persistence(tmp_path):
     budget du jour ou l'historique de recoupement — le genre d'effet de bord qu'on ne remarque
     qu'en production de digest.
     """
+    from backend.agents.analyst import reset_submission_tally
     from backend.guardrails import reset_call_tally
     from backend.memory.persistence import LocalFilePersistence, set_persistence
 
     # Même raison que ci-dessus, pour l'autre état qui survit à un test : la répartition des appels
-    # par nœud vit en mémoire de module, donc elle fuit d'un test au suivant si on ne la vide pas.
+    # par nœud et le sort des items soumis vivent en mémoire de module, donc ils fuient d'un test au
+    # suivant si on ne les vide pas.
     reset_call_tally()
+    reset_submission_tally()
 
     instance = LocalFilePersistence(
         budget_file=tmp_path / "budget.json",

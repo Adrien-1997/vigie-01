@@ -16,7 +16,7 @@ run courant (verify les a écrits), avec sa propre boucle agentique bornée elle
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from backend.agents.analyst import analyze
+from backend.agents.analyst import analyze, reset_submission_tally
 from backend.agents.collector import collect
 from backend.agents.threader import thread_events
 from backend.agents.verifier import verify
@@ -53,6 +53,9 @@ def run_pipeline() -> VeilleState:
     # entre deux POST /run) cumulent leurs répartitions. Sans effet sur le plafond quotidien, qui
     # est persistant et n'a surtout pas à être remis à zéro par un run.
     reset_call_tally()
+    # Même portée et même raison que le tally d'appels ci-dessus : ce que `analyze` a soumis relève
+    # de *ce* run, pas de la journée (cf. backend/agents/analyst.py).
+    reset_submission_tally()
     graph = build_graph()
     return graph.invoke(
         {"raw_items": [], "analyzed_items": [], "truncated": False},

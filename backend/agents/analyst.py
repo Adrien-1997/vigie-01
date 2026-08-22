@@ -3,6 +3,7 @@
 import difflib
 import html
 import re
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import get_args
@@ -256,6 +257,39 @@ def classify_item(item: RawItem) -> _Analysis:
     raise result["parsing_error"] or ValueError("réponse structurée sans tool_call exploitable")
 
 
+# Sort réservé à chaque item soumis au modèle, par source. Même statut que `calls_by_node` dans
+# backend/guardrails.py, et pour la même raison : une mesure d'exploitation, en mémoire, hors de la
+# couche de persistance, remise à zéro par run_pipeline().
+#
+# Raison d'être (docs/cadrage.md §11) : `analyze` paie un appel par item soumis, avant de savoir si
+# l'item sera retenu — un item classé hors_perimetre a coûté exactement le même appel qu'un item
+# qui atteint le digest. Mesuré au run du 2026-08-22 : 72 appels pour 31 items retenus, soit 41
+# appels (21 % du budget du jour) dépensés sur des items écartés. C'est le plus gros poste unique
+# du budget quotidien, et il était invisible : les items écartés ne sont enregistrés nulle part —
+# ni dans l'historique analysé, qui ne porte que les retenus, ni dans le journal de campagne, qui
+# ne compte que les items soumis par flux avant plafonnage. Sans cette ventilation, on ne peut pas
+# dire si ces 41 appels viennent de quelques flux généralistes ou de tout le panel, donc pas décider
+# si la dépense est réductible à la collecte ou si elle est le prix du tri lui-même.
+#
+# La clé est (source, sort) et non la seule source : « combien de perdu » sans « pourquoi » ne
+# distingue pas un flux hors sujet d'un flux dont les extraits sont trop courts pour porter une
+# citation vérifiable — deux problèmes qui n'ont pas le même remède.
+_submissions: Counter[tuple[str, str]] = Counter()
+
+
+def submissions_by_source() -> dict[str, dict[str, int]]:
+    """Sort des items soumis au modèle pendant le run courant, par source puis par sort."""
+    by_source: dict[str, dict[str, int]] = {}
+    for (source, outcome), count in _submissions.items():
+        by_source.setdefault(source, {})[outcome] = count
+    return {source: dict(sorted(outcomes.items())) for source, outcomes in sorted(by_source.items())}
+
+
+def reset_submission_tally() -> None:
+    """À appeler au début d'un run, comme reset_call_tally()."""
+    _submissions.clear()
+
+
 @dataclass
 class _Progress:
     """Ce que le nœud a réellement soumis au modèle, et s'il s'est arrêté avant la fin du lot.
@@ -300,6 +334,7 @@ def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[An
             # analysé, exactement la perte que `mark_analyzed_as_seen` a été déplacé ici pour éviter.
             progress.submitted.pop()
             progress.truncated = True
+            # Aucun sort inscrit non plus : l'item n'a pas été soumis, il repart à la collecte.
             return
         except (ValidationError, ValueError):
             # Le modèle peut renvoyer une catégorie hors énumération — vu en conditions réelles sur
@@ -312,13 +347,16 @@ def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[An
             # remonter ferait perdre tout le run, y compris les items déjà analysés avant lui — un
             # coût sans rapport avec celui d'un item raté.
             # L'appel LLM a bien eu lieu : le budget (§8) est décompté, ici comme ailleurs.
+            _submissions[(item["source"], "reponse_invalide")] += 1
             continue
         clean_text = _clean_text(item["raw_text"])
 
         if result.category == "hors_perimetre":
+            _submissions[(item["source"], "hors_perimetre")] += 1
             continue
         if not _extract_verified(result.citation, clean_text):
             # Garde-fou traçabilité (docs/cadrage.md §8) : pas de citation vérifiable, pas de résumé.
+            _submissions[(item["source"], "citation_non_verifiee")] += 1
             continue
 
         # location est une métadonnée pour la carte (docs/cadrage.md §4) : ne filtre pas la
@@ -372,6 +410,11 @@ def _analyze_items(raw_items: list[RawItem], progress: _Progress) -> Iterator[An
         # lui seul : sans ce jugement, un média d'État couvrant l'étranger gonflerait l'empreinte
         # de son propre pays, et le périmètre en sur-échantillonne délibérément (cf. §4).
         domestic_to_source = bool(result.domestic) and not location and item["country"] != "INT"
+
+        # Inscrit avant le `yield` et non après : un consommateur qui cesse d'itérer (le nœud
+        # s'arrête sur BudgetExceeded) ne reprendrait jamais la main ici, et l'item serait compté
+        # perdu alors qu'il a bien été produit.
+        _submissions[(item["source"], "retenu")] += 1
 
         yield AnalyzedItem(
             source=item["source"],

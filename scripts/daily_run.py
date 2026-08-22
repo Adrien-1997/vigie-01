@@ -66,6 +66,7 @@ from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
+from backend.agents.analyst import submissions_by_source
 from backend.agents.collector import source_freshness
 from backend.config import (
     COLLECTION_LOOKBACK_HOURS,
@@ -204,6 +205,7 @@ def main(dry_run: bool) -> int:
     clock = time.monotonic()
     analyzed, truncated, error = 0, False, None
     by_node: dict[str, int] = {}
+    by_source: dict[str, dict[str, int]] = {}
     try:
         result = run_pipeline()
         analyzed = len(result["analyzed_items"])
@@ -212,6 +214,11 @@ def main(dry_run: bool) -> int:
         # nœuds. Sans elle, on sait qu'un plafond global a tronqué le lot mais pas lequel des nœuds
         # a consommé quoi — l'arbitrage du partage restait donc impossible (docs/cadrage.md §11).
         by_node = calls_by_node()
+        # Le pendant du précédent côté `analyze` : la répartition par nœud dit *combien* ce nœud a
+        # dépensé, celle-ci dit sur *quoi*. Les deux sont nécessaires — un `analyze` cher parce que
+        # le lot est gros et un `analyze` cher parce qu'un flux remplit le lot d'items hors sujet
+        # n'appellent pas le même arbitrage de budget.
+        by_source = submissions_by_source()
     except Exception as exc:  # noqa: BLE001 — voir ci-dessous
         # Rattrapage volontairement large : un échec non journalisé est précisément le trou que ce
         # journal existe pour éviter. L'exception est enregistrée puis rendue par le code de sortie.
@@ -233,6 +240,7 @@ def main(dry_run: bool) -> int:
         "truncated": truncated,
         "llm_calls": llm_calls,
         "llm_calls_by_node": by_node,
+        "analyze_by_source": by_source,
         "history_before": history_before,
         "history_after": history_after,
         "history_by_date": by_date_after,
@@ -264,6 +272,31 @@ def main(dry_run: bool) -> int:
         # jour), et les réconcilier de force masquerait précisément ce cas.
         detail = ", ".join(f"{node} {count}" for node, count in sorted(by_node.items(), key=lambda p: -p[1]))
         print(f"  Répartition par nœud : {detail} (total {sum(by_node.values())}).")
+    if by_source:
+        outcomes = Counter()
+        for tally in by_source.values():
+            outcomes.update(tally)
+        submitted = sum(outcomes.values())
+        wasted = submitted - outcomes.get("retenu", 0)
+        share = f"{100 * wasted / submitted:.0f} %" if submitted else "—"
+        print(
+            f"  Soumis à l'analyse : {submitted} item{_s(submitted)} pour {outcomes.get('retenu', 0)} "
+            f"retenu{_s(outcomes.get('retenu', 0))} — {wasted} appel{_s(wasted)} ({share}) sur des items écartés."
+        )
+        motifs = ", ".join(
+            f"{name} {count}" for name, count in sorted(outcomes.items(), key=lambda p: -p[1]) if name != "retenu"
+        )
+        if motifs:
+            print(f"    Motifs : {motifs}")
+        # Les cinq premiers seulement : la ventilation complète part au journal, cette ligne n'est là
+        # que pour voir tout de suite si la dépense écartée est concentrée ou diffuse.
+        worst = sorted(
+            ((source, sum(t.values()) - t.get("retenu", 0)) for source, t in by_source.items()),
+            key=lambda p: -p[1],
+        )[:5]
+        detail = ", ".join(f"{source} (-{count})" for source, count in worst if count)
+        if detail:
+            print(f"    Plus gros contributeurs : {detail}")
     _print_campaign(entries + [entry])
 
     return 1 if error else 0
